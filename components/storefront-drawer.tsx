@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Menu, X } from "lucide-react";
+import { LogIn, Menu, X } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useLanguage, type TranslationKey } from "@/lib/i18n";
 
 const drawerLinks: { href: string; key: TranslationKey }[] = [
@@ -78,7 +80,7 @@ export function StorefrontDrawer() {
               aria-modal="true"
               aria-label="Store navigation"
               tabIndex={-1}
-              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-r border-border bg-background p-4 shadow-xl outline-none"
+              className="absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-e border-border bg-background p-4 shadow-xl outline-none"
             >
               <div dir="ltr" className="mb-2 flex items-center justify-between">
                 <BrandLogo size="sm" />
@@ -92,7 +94,7 @@ export function StorefrontDrawer() {
                 </button>
               </div>
 
-              <nav className="flex flex-col gap-1">
+              <nav className="flex flex-1 flex-col gap-1">
                 {drawerLinks.map((link) => {
                   const active =
                     link.href === "/"
@@ -109,7 +111,20 @@ export function StorefrontDrawer() {
                     </Link>
                   );
                 })}
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <LogIn className="h-4 w-4 text-amber-500" />
+                  <span>{dir === "rtl" ? "تسجيل الدخول / حسابي" : "Sign in / Account"}</span>
+                </Link>
               </nav>
+
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+                <LanguageSwitcher />
+                <ThemeSwitcher />
+              </div>
             </div>
           </div>,
           document.body,

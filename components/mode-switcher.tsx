@@ -54,7 +54,7 @@ export function ModeSwitcher() {
       variant={isChat ? "default" : "outline"}
       size="sm"
       onClick={() => setMode(isChat ? "default" : "chat_only")}
-      className="h-8 gap-1.5 rounded-full px-3 text-xs font-semibold"
+      className="h-8 w-8 gap-1.5 rounded-full p-0 text-xs font-semibold sm:w-auto sm:px-3"
       title={
         isChat
           ? locale === "ar"

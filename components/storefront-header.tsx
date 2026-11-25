@@ -11,20 +11,23 @@ export function StorefrontHeader() {
   return (
     <header
       dir="ltr"
-      className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur"
+      className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/85 backdrop-blur"
     >
       <CatalogRefresh />
-      <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-2 px-4 sm:gap-3 sm:px-5">
-        <div className="md:hidden">
-          <StorefrontDrawer />
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-2 px-3 sm:h-16 sm:gap-3 sm:px-5">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+          <div className="md:hidden">
+            <StorefrontDrawer />
+          </div>
+          <StorefrontNav />
         </div>
 
-        <StorefrontNav />
-
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           <ModeSwitcher />
-          <LanguageSwitcher />
-          <ThemeSwitcher />
+          <div className="hidden items-center gap-1 sm:flex">
+            <LanguageSwitcher />
+            <ThemeSwitcher />
+          </div>
           <AccountButton />
           <CartBadge />
         </div>

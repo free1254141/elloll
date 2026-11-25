@@ -34,7 +34,9 @@ export function AccountButton() {
     return (
       <Link
         href="/login"
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+        aria-label={isAr ? "تسجيل الدخول" : "Sign in"}
+        title={isAr ? "تسجيل الدخول" : "Sign in"}
+        className="inline-flex h-8 w-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background text-xs font-semibold text-foreground transition-colors hover:bg-muted sm:h-9 sm:w-auto sm:px-2.5"
       >
         <LogIn className="h-3.5 w-3.5 text-amber-500" />
         <span className="hidden sm:inline">
