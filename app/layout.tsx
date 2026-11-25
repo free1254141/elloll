@@ -6,6 +6,7 @@ import { StorefrontAiShell } from "@/features/ai/components/storefront-ai-shell"
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { CustomerAuthProvider } from "@/features/auth/components/customer-auth-provider";
 import { CustomerAuthModal } from "@/features/auth/components/customer-auth-modal";
+import { Analytics } from "@vercel/analytics/next";
 import { getSiteUrl } from "@/lib/seo";
 import "./globals.css";
 
@@ -122,6 +123,7 @@ export default function RootLayout({
             </RouteAwareThemeProvider>
           </CustomerAuthProvider>
         </LanguageProvider>
+        <Analytics />
       </body>
     </html>
   );
