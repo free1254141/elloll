@@ -197,12 +197,12 @@ function CatalogPagination({
           className="inline-flex h-9 items-center gap-1 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
-          Previous
+          السابق
         </Link>
       ) : (
         <span className="inline-flex h-9 cursor-not-allowed items-center gap-1 rounded-md px-3 text-sm font-medium text-muted-foreground/40">
           <ChevronLeft className="h-4 w-4" />
-          Previous
+          السابق
         </span>
       )}
 
@@ -229,12 +229,12 @@ function CatalogPagination({
           href={next}
           className="inline-flex h-9 items-center gap-1 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          Next
+          التالي
           <ChevronRight className="h-4 w-4" />
         </Link>
       ) : (
         <span className="inline-flex h-9 cursor-not-allowed items-center gap-1 rounded-md px-3 text-sm font-medium text-muted-foreground/40">
-          Next
+          التالي
           <ChevronRight className="h-4 w-4" />
         </span>
       )}

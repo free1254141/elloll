@@ -6,15 +6,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/features/cart/lib/cart";
 import type { Product } from "@/features/catalog/lib/catalog";
+import { useLanguage } from "@/lib/i18n";
 
-/**
- * Add to Cart control (tickets 04/05): a quantity stepper capped at available
- * stock, plus the Add to Cart button which dispatches to the persisted Zustand
- * cart store. The "Added to cart" confirmation is transient UI only — the
- * store is the source of truth for the cart.
- */
 export function AddToCart({ product }: { product: Product }) {
   const addItem = useCartStore((state) => state.addItem);
+  const { t, locale } = useLanguage();
+  const isAr = locale === "ar";
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,7 +42,7 @@ export function AddToCart({ product }: { product: Product }) {
     return (
       <Button disabled size="lg" className="w-full sm:w-auto">
         <ShoppingCart className="h-4 w-4" />
-        Out of stock
+        {t("outOfStock")}
       </Button>
     );
   }
@@ -57,8 +54,8 @@ export function AddToCart({ product }: { product: Product }) {
           type="button"
           onClick={() => setQuantity((q) => clamp(q - 1))}
           disabled={quantity <= 1}
-          aria-label="Decrease quantity"
-          className="flex h-full flex-1 items-center justify-center rounded-l-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-10 sm:flex-none"
+          aria-label={isAr ? "تقليل الكمية" : "Decrease quantity"}
+          className="flex h-full flex-1 items-center justify-center rounded-s-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-10 sm:flex-none"
         >
           <Minus className="h-4 w-4" />
         </button>
@@ -72,8 +69,8 @@ export function AddToCart({ product }: { product: Product }) {
           type="button"
           onClick={() => setQuantity((q) => clamp(q + 1))}
           disabled={quantity >= maxQuantity}
-          aria-label="Increase quantity"
-          className="flex h-full flex-1 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-10 sm:flex-none"
+          aria-label={isAr ? "زيادة الكمية" : "Increase quantity"}
+          className="flex h-full flex-1 items-center justify-center rounded-e-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-10 sm:flex-none"
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -87,12 +84,12 @@ export function AddToCart({ product }: { product: Product }) {
         {justAdded ? (
           <>
             <Check className="h-4 w-4" />
-            Added to cart
+            {t("added")}
           </>
         ) : (
           <>
             <ShoppingCart className="h-4 w-4" />
-            Add to cart
+            {t("addToCart")}
           </>
         )}
       </Button>

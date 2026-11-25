@@ -21,6 +21,7 @@ export type CheckoutDetails = {
   fullName: string;
   email: string;
   contactNumber: string;
+  governorate?: string;
   deliveryAddress: string;
   paymentMethod: PaymentMethod;
   notes?: string;
@@ -46,6 +47,7 @@ export type PlaceOrderResult =
       orderId: string;
       orderNumber: string;
       totalAmount: number;
+      shippingFee?: number;
     }
   | {
       ok: false;
@@ -71,7 +73,7 @@ export async function placeOrder(
   details: CheckoutDetails,
   items: CheckoutLineInput[],
 ): Promise<PlaceOrderResult> {
-  const { data, error } = await client.rpc("place_order", {
+  const rpcPayload: Record<string, unknown> = {
     p_full_name: details.fullName,
     p_email: details.email,
     p_contact_number: details.contactNumber,
@@ -82,7 +84,12 @@ export async function placeOrder(
       product_id: line.productId,
       quantity: line.quantity,
     })),
-  });
+  };
+  if (details.governorate) {
+    rpcPayload.p_governorate = details.governorate;
+  }
+
+  const { data, error } = await client.rpc("place_order", rpcPayload);
 
   // Transport/DB-level failure (network, timeout, unapplied migration).
   if (error) {

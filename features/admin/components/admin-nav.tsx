@@ -14,6 +14,7 @@ import {
   Menu,
   Package,
   ShoppingCart,
+  Truck,
   Users,
   X,
   type LucideIcon,
@@ -35,6 +36,7 @@ const navItems: {
   { href: "/admin/categories", labelKey: "adminCategories", icon: FolderTree },
   { href: "/admin/products", labelKey: "adminProducts", icon: Package },
   { href: "/admin/orders", labelKey: "adminOrders", icon: ShoppingCart },
+  { href: "/admin/shipping", labelKey: "adminShipping", icon: Truck },
   { href: "/admin/customers", labelKey: "adminCustomers", icon: Users },
   { href: "/admin/support", labelKey: "adminSupport", icon: Headset },
   { href: "/admin/ai-bot", labelKey: "adminAiBot", icon: Bot },
@@ -159,8 +161,9 @@ export function AdminNav() {
   useEffect(() => {
     void fetchUnreadSupport();
     const supabase = createClient();
+    const channelId = `admin-nav-support-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("admin-nav-support-badge")
+      .channel(channelId)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "support_tickets" },

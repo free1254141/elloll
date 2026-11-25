@@ -46,10 +46,10 @@ export async function ProductDetail({
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-8">
-      <Button asChild variant="ghost" size="sm" className="-ml-3 mb-6 text-muted-foreground">
+      <Button asChild variant="ghost" size="sm" className="-ms-3 mb-6 text-muted-foreground">
         <Link href="/products">
           <ArrowLeft className="h-4 w-4" />
-          Back to products
+          العودة إلى المنتجات
         </Link>
       </Button>
 
@@ -105,13 +105,13 @@ export async function ProductDetail({
         <section aria-labelledby="related-products" className="mt-16">
           <div className="mb-5 flex items-end justify-between gap-4">
             <h2 id="related-products" className="text-2xl font-semibold tracking-tight">
-              Related products
+              منتجات مشابهة
             </h2>
             <Link
               href="/products"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              View all →
+              عرض الكل ←
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -155,20 +155,20 @@ function StockBadge({ stockQuantity }: { stockQuantity: number }) {
   if (stockQuantity === 0) {
     return (
       <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
-        Out of stock
+        نفد المخزون
       </span>
     );
   }
   if (stockQuantity <= 5) {
     return (
       <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-        Only {stockQuantity} left
+        متبقي {stockQuantity} فقط
       </span>
     );
   }
   return (
     <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-      {stockQuantity} in stock
+      متوفر ({stockQuantity})
     </span>
   );
 }

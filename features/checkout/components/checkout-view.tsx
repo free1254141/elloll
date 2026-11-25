@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Banknote,
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   Download,
   Loader2,
   LogIn,
   ShieldCheck,
   ShoppingCart,
+  Truck,
   X,
 } from "lucide-react";
 import { cartCount, cartSubtotal, useCartStore, type CartItem } from "@/features/cart/lib/cart";
@@ -23,6 +26,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useCustomerAuth } from "@/features/auth/components/customer-auth-provider";
+import { useLanguage } from "@/lib/i18n";
+import {
+  calculateShippingFee,
+  DEFAULT_SHIPPING_SETTINGS,
+  EGYPT_GOVERNORATES,
+  getGovernorateLabel,
+  getGovernorateRate,
+  type ShippingSettings,
+} from "@/features/shipping/lib/shipping";
 import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,40 +44,40 @@ const priceFormatter = new Intl.NumberFormat("en-EG", {
   currency: "EGP",
 });
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; hint: string }[] = [
-  { value: "cod", label: "الدفع عند الاستلام", hint: "ادفع كاش عند استلام طلبك." },
-  { value: "ewallet", label: "محفظة إلكترونية / إنستاباي", hint: "فودافون كاش، أورانج كاش، إتصالات كاش، أو InstaPay." },
-  { value: "bank_transfer", label: "تحويل بنكي", hint: "تحويل بنكي مباشر — تصلك التفاصيل عبر البريد الإلكتروني." },
-];
-
 type FormFields = {
   fullName: string;
   email: string;
   contactNumber: string;
+  governorate: string;
   deliveryAddress: string;
   notes: string;
-  paymentMethod: PaymentMethod;
 };
 
 const EMPTY_FORM: FormFields = {
   fullName: "",
   email: "",
   contactNumber: "",
+  governorate: "cairo",
   deliveryAddress: "",
   notes: "",
-  paymentMethod: "cod",
 };
 
-export function CheckoutView() {
+export function CheckoutView({
+  initialShippingSettings = DEFAULT_SHIPPING_SETTINGS,
+}: {
+  initialShippingSettings?: ShippingSettings;
+}) {
+  const { locale, dir } = useLanguage();
+  const isAr = locale === "ar";
+  const BackArrow = dir === "rtl" ? ChevronRight : ChevronLeft;
+
   const items = useCartStore((state) => state.items);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
   const clearCart = useCartStore((state) => state.clearCart);
-  // Keep the summary honest with the live catalog (ADR-0013): prices/stock
-  // refresh on mount, and retired Products get flagged below. Checkout stays
-  // the authoritative backstop for anything that changes mid-submit.
   useCartReconcile();
   const unavailableCount = items.filter((item) => item.unavailable).length;
 
+  const [shippingSettings] = useState<ShippingSettings>(initialShippingSettings);
   const [fields, setFields] = useState<FormFields>(EMPTY_FORM);
   const {
     user: signedInUser,
@@ -95,14 +107,16 @@ export function CheckoutView() {
       openAuthModal("login");
     }
   }, [hasHydrated, authLoading, signedInUser, items.length, openAuthModal]);
+
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CheckoutActionResponse | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Snapshot of what was ordered, captured before the cart is cleared.
   const [confirmation, setConfirmation] = useState<{
     orderNumber: string;
     totalAmount: number;
+    shippingFee: number;
+    governorate: string;
     count: number;
     lines: CartItem[];
     fullName: string;
@@ -112,6 +126,13 @@ export function CheckoutView() {
 
   const subtotal = cartSubtotal(items);
   const count = cartCount(items);
+  const shippingFee = calculateShippingFee(
+    shippingSettings,
+    fields.governorate,
+    subtotal,
+  );
+  const finalTotal = subtotal + shippingFee;
+  const freeThreshold = shippingSettings.free_shipping_threshold;
 
   const set = (key: keyof FormFields) => (value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -120,6 +141,30 @@ export function CheckoutView() {
     }
   };
 
+  function validateForm(): boolean {
+    const errors: Partial<Record<keyof FormFields, string>> = {};
+    if (!fields.fullName.trim()) {
+      errors.fullName = isAr ? "الاسم الكامل مطلوب." : "Full name is required.";
+    }
+    if (!EMAIL_RE.test(fields.email.trim())) {
+      errors.email = isAr ? "أدخل بريداً إلكترونياً صحيحاً." : "Enter a valid email address.";
+    }
+    if (!fields.contactNumber.trim()) {
+      errors.contactNumber = isAr ? "رقم الموبايل مطلوب." : "Contact number is required.";
+    }
+    if (!fields.governorate.trim()) {
+      errors.governorate = isAr ? "اختر المحافظة." : "Select your governorate.";
+    }
+    if (!fields.deliveryAddress.trim()) {
+      errors.deliveryAddress = isAr ? "عنوان التوصيل مطلوب." : "Delivery address is required.";
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return false;
+    }
+    return true;
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
@@ -127,18 +172,7 @@ export function CheckoutView() {
       openAuthModal("login");
       return;
     }
-
-    // Quick client-side pass so the user sees field errors immediately; the
-    // server action re-validates everything authoritatively (ADR-0004).
-    const errors: Partial<Record<keyof FormFields, string>> = {};
-    if (!fields.fullName.trim()) errors.fullName = "Full name is required.";
-    if (!EMAIL_RE.test(fields.email.trim())) errors.email = "Enter a valid email address.";
-    if (!fields.contactNumber.trim()) errors.contactNumber = "Contact number is required.";
-    if (!fields.deliveryAddress.trim()) errors.deliveryAddress = "Delivery address is required.";
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
+    if (!validateForm()) return;
 
     const lines = items.map((item) => ({
       productId: item.id,
@@ -148,33 +182,38 @@ export function CheckoutView() {
     setSubmitting(true);
     setResult(null);
     try {
+      const govLabel = getGovernorateLabel(fields.governorate, "ar");
+      const fullAddress = govLabel
+        ? `${govLabel} — ${fields.deliveryAddress.trim()}`
+        : fields.deliveryAddress.trim();
+
       const response = await submitCheckout({
         details: {
           fullName: fields.fullName.trim(),
           email: fields.email.trim(),
           contactNumber: fields.contactNumber.trim(),
-          deliveryAddress: fields.deliveryAddress.trim(),
-          paymentMethod: fields.paymentMethod,
+          governorate: fields.governorate,
+          deliveryAddress: fullAddress,
+          paymentMethod: "cod",
           notes: fields.notes.trim() || undefined,
         },
         items: lines,
       });
 
       if (response.ok) {
-        // Copy the array (NOT `{ ...items }` — that yields an object of
-        // numeric keys). The snapshot is shown in the confirmation modal
-        // after the cart is cleared.
         const snapshot = [...items];
         setConfirmation({
           orderNumber: response.orderNumber,
           totalAmount: response.totalAmount,
+          shippingFee: response.shippingFee ?? shippingFee,
+          governorate: fields.governorate,
           count,
           lines: snapshot,
           fullName: fields.fullName.trim(),
-          deliveryAddress: fields.deliveryAddress.trim(),
-          paymentMethod: fields.paymentMethod,
+          deliveryAddress: fullAddress,
+          paymentMethod: "cod",
         });
-        clearCart(); // success: the cart is spent
+        clearCart();
         return;
       }
 
@@ -187,7 +226,6 @@ export function CheckoutView() {
     }
   }
 
-  // Not hydrated yet: show a skeleton so the badge and totals never flash wrong.
   if (!hasHydrated) {
     return (
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-5">
@@ -201,33 +239,36 @@ export function CheckoutView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-5">
+    <div dir={dir} className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-5">
       <Link
         href="/cart"
         className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronLeft className="h-4 w-4" />
-        Back to cart
+        <BackArrow className="h-4 w-4" />
+        {isAr ? "العودة إلى السلة" : "Back to cart"}
       </Link>
 
-      <h1 className="mt-2 font-display text-3xl font-bold tracking-tight">Checkout</h1>
+      <h1 className="mt-2 font-display text-3xl font-bold tracking-tight">
+        {isAr ? "إتمام الطلب" : "Checkout"}
+      </h1>
 
-      {/* After a successful order the cart is cleared, so the form gives way
-          to the empty state (the confirmation modal stays on top). */}
       {items.length === 0 ? (
-        <EmptyCheckout />
+        <EmptyCheckout isAr={isAr} />
       ) : (
         <div className="mt-8 grid gap-6 sm:gap-8 lg:grid-cols-[1fr_360px]">
-          {/* Left: customer auth gate + delivery details form */}
           <form onSubmit={handleSubmit} noValidate className="min-w-0 space-y-6">
             {!authLoading && !signedInUser && (
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
                 <div className="space-y-1">
                   <p className="text-sm font-bold text-foreground">
-                    تسجيل الدخول مطلوب لإتمام الدفع وتأكيد الطلب
+                    {isAr
+                      ? "تسجيل الدخول مطلوب لإتمام الدفع وتأكيد الطلب"
+                      : "Sign in required to complete checkout"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    سجّل دخولك الآن بحساب Google أو البريد الإلكتروني لحفظ بياناتك ومتابعة طلبك.
+                    {isAr
+                      ? "سجّل دخولك الآن بحساب Google أو البريد الإلكتروني لحفظ بياناتك ومتابعة طلبك."
+                      : "Sign in with Google or email to save your details and track your order."}
                   </p>
                 </div>
                 <Button
@@ -236,24 +277,29 @@ export function CheckoutView() {
                   className="shrink-0 gap-2"
                 >
                   <LogIn className="h-4 w-4" />
-                  تسجيل الدخول / إنشاء حساب
+                  {isAr ? "تسجيل الدخول / إنشاء حساب" : "Sign in / Sign up"}
                 </Button>
               </div>
             )}
 
             <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Your details
+                {isAr ? "بيانات التوصيل" : "Delivery details"}
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 {signedInUser
-                  ? `Signed in as ${signedInUser.email}`
-                  : "Sign in with Google or email to complete checkout details and payment."}
+                  ? isAr
+                    ? `مسجل الدخول بحساب: ${signedInUser.email}`
+                    : `Signed in as ${signedInUser.email}`
+                  : isAr
+                    ? "سجّل الدخول بحساب Google أو الإيميل لإكمال بيانات الشحن وتأكيد الطلب."
+                    : "Sign in with Google or email to complete delivery details."}
               </p>
+
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
                   className="sm:col-span-2"
-                  label="Full name"
+                  label={isAr ? "الاسم الكامل" : "Full name"}
                   htmlFor="checkout-full-name"
                   error={fieldErrors.fullName}
                 >
@@ -261,26 +307,32 @@ export function CheckoutView() {
                     id="checkout-full-name"
                     name="fullName"
                     autoComplete="name"
-                    placeholder="Ada Lovelace"
+                    placeholder={isAr ? "مثال: أحمد محمد" : "Ada Lovelace"}
                     value={fields.fullName}
                     onChange={(e) => set("fullName")(e.target.value)}
                     aria-invalid={Boolean(fieldErrors.fullName)}
                   />
                 </Field>
-                <Field label="Email" htmlFor="checkout-email" error={fieldErrors.email}>
+
+                <Field
+                  label={isAr ? "البريد الإلكتروني" : "Email"}
+                  htmlFor="checkout-email"
+                  error={fieldErrors.email}
+                >
                   <Input
                     id="checkout-email"
                     name="email"
                     type="email"
                     autoComplete="email"
-                    placeholder="ada@example.com"
+                    placeholder="name@example.com"
                     value={fields.email}
                     onChange={(e) => set("email")(e.target.value)}
                     aria-invalid={Boolean(fieldErrors.email)}
                   />
                 </Field>
+
                 <Field
-                  label="Contact number"
+                  label={isAr ? "رقم الموبايل" : "Contact number"}
                   htmlFor="checkout-contact"
                   error={fieldErrors.contactNumber}
                 >
@@ -289,15 +341,53 @@ export function CheckoutView() {
                     name="contactNumber"
                     type="tel"
                     autoComplete="tel"
-                    placeholder="+63 912 345 6789"
+                    placeholder="01012345678"
                     value={fields.contactNumber}
                     onChange={(e) => set("contactNumber")(e.target.value)}
                     aria-invalid={Boolean(fieldErrors.contactNumber)}
                   />
                 </Field>
+
                 <Field
                   className="sm:col-span-2"
-                  label="Delivery address"
+                  label={isAr ? "المحافظة" : "Governorate"}
+                  htmlFor="checkout-governorate"
+                  error={fieldErrors.governorate}
+                >
+                  <select
+                    id="checkout-governorate"
+                    name="governorate"
+                    value={fields.governorate}
+                    onChange={(e) => set("governorate")(e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.governorate)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">
+                      {isAr ? "— اختر المحافظة —" : "— Select governorate —"}
+                    </option>
+                    {EGYPT_GOVERNORATES.map((gov) => {
+                      const govRate = getGovernorateRate(shippingSettings, gov.code);
+                      const isFree = freeThreshold > 0 && subtotal >= freeThreshold;
+                      return (
+                        <option key={gov.code} value={gov.code}>
+                          {isAr ? gov.nameAr : gov.nameEn} (
+                          {isFree
+                            ? isAr
+                              ? "شحن مجاني"
+                              : "Free shipping"
+                            : isAr
+                              ? `الشحن: ${govRate} ج.م`
+                              : `Shipping: EGP ${govRate}`}
+                          )
+                        </option>
+                      );
+                    })}
+                  </select>
+                </Field>
+
+                <Field
+                  className="sm:col-span-2"
+                  label={isAr ? "العنوان بالتفصيل" : "Delivery address"}
                   htmlFor="checkout-address"
                   error={fieldErrors.deliveryAddress}
                 >
@@ -306,23 +396,32 @@ export function CheckoutView() {
                     name="deliveryAddress"
                     rows={3}
                     autoComplete="street-address"
-                    placeholder="Street, barangay, city, province, postal code"
+                    placeholder={
+                      isAr
+                        ? "المدينة / المنطقة، اسم الشارع، رقم العقار، الدور، علامة مميزة..."
+                        : "City, street, building, floor, landmark..."
+                    }
                     value={fields.deliveryAddress}
                     onChange={(e) => set("deliveryAddress")(e.target.value)}
                     aria-invalid={Boolean(fieldErrors.deliveryAddress)}
                     className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   />
                 </Field>
+
                 <Field
                   className="sm:col-span-2"
-                  label="Notes (optional)"
+                  label={isAr ? "ملاحظات إضافية (اختياري)" : "Notes (optional)"}
                   htmlFor="checkout-notes"
                 >
                   <textarea
                     id="checkout-notes"
                     name="notes"
                     rows={2}
-                    placeholder="Delivery instructions, landmark, gate code…"
+                    placeholder={
+                      isAr
+                        ? "مواعيد التوصيل المفضلة أو أي تعليمات للمندوب..."
+                        : "Delivery instructions or preferred time..."
+                    }
                     value={fields.notes}
                     onChange={(e) => set("notes")(e.target.value)}
                     className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
@@ -331,46 +430,31 @@ export function CheckoutView() {
               </div>
             </section>
 
+            {/* COD-only Payment Method */}
             <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Payment method
+                {isAr ? "طريقة الدفع" : "Payment method"}
               </h2>
               <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Recorded only — no payment is taken on this site.
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                {isAr
+                  ? "الدفع متاح عند الاستلام فقط — لا يتم سحب أي مبالغ أونلاين."
+                  : "Cash on Delivery only — no online payment is charged."}
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Payment method">
-                {PAYMENT_OPTIONS.map((option) => {
-                  const active = fields.paymentMethod === option.value;
-                  return (
-                    <label
-                      key={option.value}
-                      className={cn(
-                        "flex cursor-pointer flex-col gap-1 rounded-lg border p-2.5 transition-colors sm:p-3",
-                        active
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40",
-                      )}
-                    >
-                      <span className="flex items-center gap-2 text-sm font-medium">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value={option.value}
-                          checked={active}
-                          onChange={() => set("paymentMethod")(option.value)}
-                          className="h-3.5 w-3.5 accent-primary"
-                        />
-                        {option.label}
-                      </span>
-                      <span className="pl-6 text-xs text-muted-foreground">{option.hint}</span>
-                    </label>
-                  );
-                })}
+              <div className="mt-4 rounded-xl border-2 border-primary bg-primary/5 p-3.5">
+                <div className="flex items-center gap-2.5 text-sm font-bold">
+                  <Banknote className="h-5 w-5 text-amber-500" />
+                  <span>{isAr ? "الدفع عند الاستلام (كاش)" : "Cash on Delivery (COD)"}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {isAr
+                    ? "ادفع نقداً للمندوب بعد معاينة واستلام طلبك."
+                    : "Pay cash to the courier upon receiving your order."}
+                </p>
               </div>
             </section>
 
-            <ErrorBanner result={result} onDismiss={() => setResult(null)} />
+            <ErrorBanner result={result} isAr={isAr} onDismiss={() => setResult(null)} />
 
             <Button
               type="button"
@@ -382,38 +466,34 @@ export function CheckoutView() {
                   openAuthModal("login");
                   return;
                 }
-                // Validate fields before opening confirmation modal
-                const errors: Partial<Record<keyof FormFields, string>> = {};
-                if (!fields.fullName.trim()) errors.fullName = "Full name is required.";
-                if (!EMAIL_RE.test(fields.email.trim())) errors.email = "Enter a valid email address.";
-                if (!fields.contactNumber.trim()) errors.contactNumber = "Contact number is required.";
-                if (!fields.deliveryAddress.trim()) errors.deliveryAddress = "Delivery address is required.";
-                if (Object.keys(errors).length > 0) {
-                  setFieldErrors(errors);
-                  return;
-                }
+                if (!validateForm()) return;
                 setConfirmOpen(true);
               }}
             >
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Placing order…
+                  {isAr ? "جاري تأكيد الطلب…" : "Placing order…"}
                 </>
+              ) : isAr ? (
+                `تأكيد الطلب · ${priceFormatter.format(finalTotal)}`
               ) : (
-                `Place order · ${priceFormatter.format(subtotal)}`
+                `Place order · ${priceFormatter.format(finalTotal)}`
               )}
             </Button>
 
             {confirmOpen && (
               <ConfirmModal
-                title="Place order?"
-                message={`You're about to place an order for ${priceFormatter.format(subtotal)} (${count} ${count === 1 ? "item" : "items"}). This will confirm your items and deduct stock.`}
-                confirmLabel="Place order"
+                title={isAr ? "تأكيد إرسال الطلب؟" : "Place order?"}
+                message={
+                  isAr
+                    ? `أنت على وشك تأكيد طلب بمبلغ إجمالي ${priceFormatter.format(finalTotal)} (${count} منتج + الشحن: ${shippingFee === 0 ? "مجاني" : priceFormatter.format(shippingFee)}).`
+                    : `You're about to place an order totaling ${priceFormatter.format(finalTotal)} (${count} ${count === 1 ? "item" : "items"} + shipping ${shippingFee === 0 ? "Free" : priceFormatter.format(shippingFee)}).`
+                }
+                confirmLabel={isAr ? "تأكيد الطلب" : "Place order"}
                 busy={submitting}
                 onConfirm={() => {
                   setConfirmOpen(false);
-                  // Trigger the actual form submission
                   const form = document.querySelector("form");
                   if (form) {
                     const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
@@ -423,24 +503,25 @@ export function CheckoutView() {
                 onCancel={() => setConfirmOpen(false)}
               />
             )}
+
             {unavailableCount > 0 && (
               <p className="mt-3 text-sm font-medium text-destructive">
-                Some items are no longer available —{" "}
+                {isAr ? "بعض المنتجات لم تعد متوفرة — " : "Some items are no longer available — "}
                 <Link
                   href="/cart"
                   className="underline underline-offset-4 hover:text-foreground"
                 >
-                  review your cart
+                  {isAr ? "راجع السلة" : "review your cart"}
                 </Link>{" "}
-                to remove them.
+                {isAr ? "لإزالتها." : "to remove them."}
               </p>
             )}
           </form>
 
-          {/* Right: order summary */}
+          {/* Order Summary */}
           <aside className="h-fit min-w-0 overflow-hidden rounded-xl border border-border bg-card p-4 sm:p-5 lg:sticky lg:top-24">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Order summary
+              {isAr ? "ملخص الطلب" : "Order summary"}
             </h2>
             <ul className="mt-4 space-y-3">
               {items.map((item) => (
@@ -455,7 +536,7 @@ export function CheckoutView() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {priceFormatter.format(item.price)} each
+                      {priceFormatter.format(item.price)} {isAr ? "للوحدة" : "each"}
                     </p>
                   </div>
                   <span className="text-sm font-semibold tabular-nums">
@@ -466,20 +547,47 @@ export function CheckoutView() {
             </ul>
             <dl className="mt-4 space-y-2 border-t border-border pt-4 text-sm">
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">Items ({count})</dt>
+                <dt className="text-muted-foreground">
+                  {isAr ? `المنتجات (${count})` : `Items (${count})`}
+                </dt>
                 <dd className="font-medium tabular-nums">{priceFormatter.format(subtotal)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">Shipping</dt>
-                <dd className="font-medium">{subtotal >= 2500 ? "Free" : "Calculated at checkout"}</dd>
+                <dt className="flex items-center gap-1 text-muted-foreground">
+                  <Truck className="h-3.5 w-3.5" />
+                  {isAr ? "مصاريف الشحن" : "Shipping"}
+                  {fields.governorate
+                    ? ` (${getGovernorateLabel(fields.governorate, isAr ? "ar" : "en")})`
+                    : ""}
+                </dt>
+                <dd className="font-medium tabular-nums">
+                  {!fields.governorate
+                    ? isAr
+                      ? "اختر المحافظة"
+                      : "Select gov"
+                    : shippingFee === 0
+                      ? isAr
+                        ? "مجاني"
+                        : "Free"
+                      : priceFormatter.format(shippingFee)}
+                </dd>
               </div>
-              <div className="flex justify-between border-t border-border pt-3 text-base font-semibold">
-                <dt>Total</dt>
-                <dd className="tabular-nums">{priceFormatter.format(subtotal)}</dd>
+              <div className="flex justify-between border-t border-border pt-3 text-base font-bold">
+                <dt>{isAr ? "الإجمالي النهائي" : "Total"}</dt>
+                <dd className="tabular-nums text-amber-500">
+                  {priceFormatter.format(finalTotal)}
+                </dd>
               </div>
             </dl>
+            {freeThreshold > 0 && subtotal < freeThreshold && (
+              <p className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-600 dark:text-amber-400">
+                {isAr
+                  ? `أضف ${priceFormatter.format(freeThreshold - subtotal)} للحصول على شحن مجاني`
+                  : `Add ${priceFormatter.format(freeThreshold - subtotal)} more for free shipping`}
+              </p>
+            )}
             <p className="mt-3 text-center text-xs text-muted-foreground">
-              Stock is reserved when you place your order.
+              {isAr ? "يتم حجز المخزون عند تأكيد الطلب." : "Stock is reserved when you place your order."}
             </p>
           </aside>
         </div>
@@ -487,6 +595,8 @@ export function CheckoutView() {
 
       {confirmation && (
         <ConfirmationModal
+          isAr={isAr}
+          dir={dir}
           confirmation={confirmation}
           onClose={() => setConfirmation(null)}
         />
@@ -523,9 +633,11 @@ function Field({
 
 function ErrorBanner({
   result,
+  isAr,
   onDismiss,
 }: {
   result: CheckoutActionResponse | null;
+  isAr: boolean;
   onDismiss: () => void;
 }) {
   if (!result || result.ok) return null;
@@ -534,11 +646,13 @@ function ErrorBanner({
     return (
       <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm" role="alert">
         <div className="flex items-start justify-between gap-3">
-          <p className="font-semibold text-destructive">Not enough stock</p>
+          <p className="font-semibold text-destructive">
+            {isAr ? "المخزون غير كافٍ" : "Not enough stock"}
+          </p>
           <button
             type="button"
             onClick={onDismiss}
-            aria-label="Dismiss"
+            aria-label={isAr ? "إغلاق" : "Dismiss"}
             className="rounded p-1 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
           >
             <X className="h-4 w-4" />
@@ -547,13 +661,19 @@ function ErrorBanner({
         <ul className="mt-2 space-y-1">
           {result.items.map((issue) => (
             <li key={issue.productId} className="text-muted-foreground">
-              <span className="font-medium text-foreground">{issue.name}</span> — only{" "}
-              {issue.available ?? 0} left, you asked for {issue.requested}.
+              <span className="font-medium text-foreground">{issue.name}</span> —{" "}
+              {isAr
+                ? `متوفر ${issue.available ?? 0} فقط، المطلوب ${issue.requested}`
+                : `only ${issue.available ?? 0} left, requested ${issue.requested}`}
+              .
             </li>
           ))}
         </ul>
-        <Link href="/cart" className="mt-3 inline-flex h-9 items-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent">
-          Adjust quantities in cart
+        <Link
+          href="/cart"
+          className="mt-3 inline-flex h-9 items-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent"
+        >
+          {isAr ? "تعديل الكميات في السلة" : "Adjust quantities in cart"}
         </Link>
       </div>
     );
@@ -565,14 +685,16 @@ function ErrorBanner({
         {result.message}
         {result.code === "PRODUCT_UNAVAILABLE" && (
           <span className="mt-1 block font-normal text-muted-foreground">
-            A product in your cart was removed or retired. Review your cart and try again.
+            {isAr
+              ? "أحد المنتجات في سلتك لم يعد متوفراً. راجع السلة وحاول مرة أخرى."
+              : "A product in your cart was removed or retired. Review your cart and try again."}
           </span>
         )}
       </p>
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={isAr ? "إغلاق" : "Dismiss"}
         className="rounded p-1 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
       >
         <X className="h-4 w-4" />
@@ -582,10 +704,24 @@ function ErrorBanner({
 }
 
 function ConfirmationModal({
+  isAr,
+  dir,
   confirmation,
   onClose,
 }: {
-  confirmation: { orderNumber: string; totalAmount: number; count: number; lines: CartItem[]; fullName: string; deliveryAddress: string; paymentMethod: PaymentMethod };
+  isAr: boolean;
+  dir: "rtl" | "ltr";
+  confirmation: {
+    orderNumber: string;
+    totalAmount: number;
+    shippingFee: number;
+    governorate: string;
+    count: number;
+    lines: CartItem[];
+    fullName: string;
+    deliveryAddress: string;
+    paymentMethod: PaymentMethod;
+  };
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -625,10 +761,10 @@ function ConfirmationModal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div dir={dir} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Close confirmation"
+        aria-label={isAr ? "إغلاق" : "Close confirmation"}
         onClick={onClose}
         className="absolute inset-0 h-full w-full bg-black/50 backdrop-blur-sm"
       />
@@ -645,37 +781,51 @@ function ConfirmationModal({
             <CheckCircle2 className="h-8 w-8 text-emerald-700 dark:text-emerald-400" />
           </div>
           <h2 id="confirmation-title" className="mt-4 text-xl font-bold tracking-tight">
-            Order placed!
+            {isAr ? "تم تأكيد طلبك بنجاح!" : "Order placed!"}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Thanks — your cubes are on their way to being packed.
+            {isAr
+              ? "شكراً لتسوقك من elloll — طلبك قيد التجهيز وسيتم التواصل معك قريباً."
+              : "Thanks for shopping with elloll — your order is being prepared."}
           </p>
         </div>
 
         <div className="p-4 sm:p-6">
           <div className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-3 text-center">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Order number
+              {isAr ? "رقم الطلب" : "Order number"}
             </p>
-            <p className="mt-0.5 break-all font-mono text-lg font-bold tracking-tight">
+            <p className="mt-0.5 break-all font-mono text-lg font-bold tracking-tight" dir="ltr">
               {confirmation.orderNumber}
             </p>
           </div>
 
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Items</dt>
+              <dt className="text-muted-foreground">{isAr ? "عدد القطع" : "Items"}</dt>
               <dd className="font-medium tabular-nums">{confirmation.count}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Total</dt>
+              <dt className="text-muted-foreground">{isAr ? "مصاريف الشحن" : "Shipping"}</dt>
+              <dd className="font-medium tabular-nums">
+                {confirmation.shippingFee === 0
+                  ? isAr
+                    ? "مجاني"
+                    : "Free"
+                  : priceFormatter.format(confirmation.shippingFee)}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">{isAr ? "الإجمالي النهائي" : "Total"}</dt>
               <dd className="font-semibold tabular-nums">
                 {priceFormatter.format(confirmation.totalAmount)}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Payment</dt>
-              <dd className="font-medium">Recorded at checkout</dd>
+              <dt className="text-muted-foreground">{isAr ? "طريقة الدفع" : "Payment"}</dt>
+              <dd className="font-medium">
+                {isAr ? "الدفع عند الاستلام" : "Cash on Delivery"}
+              </dd>
             </div>
           </dl>
 
@@ -694,7 +844,7 @@ function ConfirmationModal({
           </ul>
 
           <Button asChild size="lg" className="mt-6 w-full">
-            <Link href="/products">Continue shopping</Link>
+            <Link href="/products">{isAr ? "متابعة التسوق" : "Continue shopping"}</Link>
           </Button>
           <Button
             type="button"
@@ -705,14 +855,20 @@ function ConfirmationModal({
             disabled={downloading}
           >
             <Download className="h-4 w-4" />
-            {downloading ? "Generating receipt…" : "Download receipt"}
+            {downloading
+              ? isAr
+                ? "جاري إنشاء الفاتورة…"
+                : "Generating receipt…"
+              : isAr
+                ? "تحميل الفاتورة PDF"
+                : "Download receipt"}
           </Button>
           <button
             type="button"
             onClick={onClose}
             className="mt-2 w-full text-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            Close
+            {isAr ? "إغلاق" : "Close"}
           </button>
         </div>
       </div>
@@ -721,18 +877,22 @@ function ConfirmationModal({
   );
 }
 
-function EmptyCheckout() {
+function EmptyCheckout({ isAr }: { isAr: boolean }) {
   return (
     <div className="mt-8 rounded-xl border border-dashed border-border p-12 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <ShoppingCart className="h-7 w-7 text-muted-foreground" />
       </div>
-      <p className="mt-4 text-sm font-medium">Nothing to check out</p>
+      <p className="mt-4 text-sm font-medium">
+        {isAr ? "لا توجد منتجات لإتمام الطلب" : "Nothing to check out"}
+      </p>
       <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-        Your cart is empty. Add a few items from the catalog first.
+        {isAr
+          ? "سلة التسوق فارغة حالياً. أضف بعض المنتجات من المتجر أولاً."
+          : "Your cart is empty. Add a few items from the catalog first."}
       </p>
       <Button asChild className="mt-6">
-        <Link href="/products">Browse products</Link>
+        <Link href="/products">{isAr ? "تصفح المنتجات" : "Browse products"}</Link>
       </Button>
     </div>
   );

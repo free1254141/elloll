@@ -24,7 +24,8 @@ export function useRealtimeRefresh(
 
   useEffect(() => {
     const client = createClient();
-    const channel = client.channel(channelName);
+    const uniqueChannel = `${channelName}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const channel = client.channel(uniqueChannel);
     const refresh = createRealtimeRefresh(channel, tables, () => {
       router.refresh();
       onRefresh?.();

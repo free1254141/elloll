@@ -63,6 +63,17 @@ export async function submitCheckout(input: {
     };
   }
   if (
+    typeof details.governorate !== "string" ||
+    !details.governorate.trim()
+  ) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "اختر المحافظة لحساب مصاريف الشحن.",
+      field: "governorate",
+    };
+  }
+  if (
     typeof details.deliveryAddress !== "string" ||
     !details.deliveryAddress.trim()
   ) {
