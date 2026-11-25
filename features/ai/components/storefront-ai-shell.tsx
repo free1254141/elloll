@@ -112,6 +112,17 @@ export function StorefrontAiShell() {
   });
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevPathRef = useRef(pathname);
+
+  useEffect(() => {
+    if (prevPathRef.current !== pathname) {
+      if (userMode === "chat_only" && pathname !== "/") {
+        setOpen(true);
+        setExpanded(false);
+      }
+      prevPathRef.current = pathname;
+    }
+  }, [pathname, userMode]);
 
   const cartItems = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
@@ -173,7 +184,7 @@ export function StorefrontAiShell() {
     return null;
   }
 
-  const isChatOnly = userMode === "chat_only";
+  const isChatOnly = userMode === "chat_only" && pathname === "/";
   const isFullViewport = isChatOnly || expanded;
 
   const quickPrompts =
@@ -608,7 +619,9 @@ export function StorefrontAiShell() {
           className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/80 px-3 backdrop-blur sm:h-16 sm:px-6"
         >
           <div className="flex min-w-0 shrink-0 items-center gap-2.5">
-            <BrandLogo size="sm" priority />
+            <Link href="/" className="flex shrink-0 items-center">
+              <BrandLogo size="sm" priority />
+            </Link>
             <span className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-500 md:inline-flex">
               <Sparkles className="h-3 w-3" />
               {config.bot_name}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Bot, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/lib/i18n";
@@ -46,14 +47,27 @@ export function useStorefrontMode() {
 export function ModeSwitcher() {
   const { mode, setMode } = useStorefrontMode();
   const { locale } = useLanguage();
-  const isChat = mode === "chat_only";
+  const pathname = usePathname();
+  const router = useRouter();
+  const isChat = mode === "chat_only" && pathname === "/";
+
+  function handleToggle() {
+    if (isChat) {
+      setMode("default");
+    } else {
+      setMode("chat_only");
+      if (pathname !== "/") {
+        router.push("/");
+      }
+    }
+  }
 
   return (
     <Button
       type="button"
       variant={isChat ? "default" : "outline"}
       size="sm"
-      onClick={() => setMode(isChat ? "default" : "chat_only")}
+      onClick={handleToggle}
       className="h-8 w-8 gap-1.5 rounded-full p-0 text-xs font-semibold sm:w-auto sm:px-3"
       title={
         isChat
