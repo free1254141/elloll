@@ -605,14 +605,16 @@ export function StorefrontAiShell() {
       <div className="fixed inset-0 z-50 flex h-dvh w-screen flex-col bg-background">
         <header
           dir="ltr"
-          className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card/80 px-4 backdrop-blur sm:px-6"
+          className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/80 px-3 backdrop-blur sm:h-16 sm:px-6"
         >
-          <BrandLogo size="sm" priority />
-          <span className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-500 sm:inline-flex">
-            <Sparkles className="h-3 w-3" />
-            {config.bot_name}
-          </span>
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex min-w-0 shrink-0 items-center gap-2.5">
+            <BrandLogo size="sm" priority />
+            <span className="hidden items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-500 md:inline-flex">
+              <Sparkles className="h-3 w-3" />
+              {config.bot_name}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
             <ModeSwitcher />
             <Button
               type="button"
@@ -620,12 +622,14 @@ export function StorefrontAiShell() {
               size="icon"
               onClick={resetChat}
               title={locale === "ar" ? "محادثة جديدة" : "New chat"}
-              className="h-9 w-9 text-muted-foreground"
+              className="h-8 w-8 text-muted-foreground sm:h-9 sm:w-9"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-            <LanguageSwitcher />
-            <ThemeSwitcher />
+            <div className="hidden items-center gap-1 sm:flex">
+              <LanguageSwitcher />
+              <ThemeSwitcher />
+            </div>
             <AccountButton />
             <CartBadge />
           </div>
