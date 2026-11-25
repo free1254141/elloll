@@ -51,6 +51,17 @@ export const metadata: Metadata = {
   alternates: {
     canonical: defaultUrl,
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   openGraph: {
     title: "elloll — أزياء وملابس عصرية في مصر",
     description:
@@ -93,16 +104,36 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const storeJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "ClothingStore",
-    name: "elloll",
-    url: defaultUrl,
-    description:
-      "متجر elloll للملابس والأزياء العصرية في مصر — شحن لجميع المحافظات.",
-    priceRange: "EGP",
-    areaServed: "EG",
-  };
+  const storeJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "ClothingStore",
+      name: "elloll",
+      url: defaultUrl,
+      logo: `${defaultUrl}/icon-512.png`,
+      image: `${defaultUrl}/opengraph-image.png`,
+      description:
+        "متجر elloll للملابس والأزياء العصرية في مصر — شحن لجميع المحافظات.",
+      priceRange: "EGP",
+      areaServed: "EG",
+      address: {
+        "@type": "PostalAddress",
+        addressCountry: "EG",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "elloll",
+      url: defaultUrl,
+      inLanguage: "ar-EG",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${defaultUrl}/products?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+  ];
 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>

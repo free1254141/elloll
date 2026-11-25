@@ -96,34 +96,76 @@ async function ProductJsonLd({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = await getCachedProductById(id);
+  const [product, categories] = await Promise.all([
+    getCachedProductById(id),
+    getCachedFeaturedCategories(),
+  ]);
   if (!product) return null;
 
+  const category = categories.find((c) => c.id === product.category_id);
   const images = getProductImages(product);
   const baseUrl = getSiteUrl();
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.name,
-    description:
-      product.description || `تسوق ${product.name} من متجر elloll في مصر.`,
-    image: images.length > 0 ? images : undefined,
-    brand: {
-      "@type": "Brand",
-      name: "elloll",
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.name,
+      description:
+        product.description || `تسوق ${product.name} من متجر elloll في مصر.`,
+      image: images.length > 0 ? images : undefined,
+      brand: {
+        "@type": "Brand",
+        name: "elloll",
+      },
+      offers: {
+        "@type": "Offer",
+        url: `${baseUrl}/products/${product.id}`,
+        priceCurrency: "EGP",
+        price: Number(product.price).toFixed(2),
+        availability:
+          product.stock_quantity > 0
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+        itemCondition: "https://schema.org/NewCondition",
+      },
     },
-    offers: {
-      "@type": "Offer",
-      url: `${baseUrl}/products/${product.id}`,
-      priceCurrency: "EGP",
-      price: Number(product.price).toFixed(2),
-      availability:
-        product.stock_quantity > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock",
-      itemCondition: "https://schema.org/NewCondition",
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "الرئيسية", item: baseUrl },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "المنتجات",
+          item: `${baseUrl}/products`,
+        },
+        ...(category
+          ? [
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: category.name,
+                item: `${baseUrl}/products?category=${encodeURIComponent(category.slug)}`,
+              },
+              {
+                "@type": "ListItem",
+                position: 4,
+                name: product.name,
+                item: `${baseUrl}/products/${product.id}`,
+              },
+            ]
+          : [
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: product.name,
+                item: `${baseUrl}/products/${product.id}`,
+              },
+            ]),
+      ],
     },
-  };
+  ];
 
   return (
     <script
