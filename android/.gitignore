@@ -1,0 +1,9 @@
+*.apk
+*.aab
+*.idsig
+*.keystore
+local.properties
+.gradle/
+build/
+app/build/
+!gradle/wrapper/gradle-wrapper.jar

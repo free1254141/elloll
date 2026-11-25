@@ -12,10 +12,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CubeFace } from "@/components/cube-face";
+import { BrandLogo } from "@/components/brand-logo";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 export function LoginForm({
   className,
@@ -27,6 +30,7 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,15 +39,19 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const stripBidi = (s: string) =>
+        s.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "").trim();
+      const cleanedEmail = stripBidi(email).toLowerCase();
+      const cleanedPassword = stripBidi(password);
+      const loginEmail = cleanedEmail.includes("@")
+        ? cleanedEmail
+        : `${cleanedEmail}@elloll.com`;
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: cleanedPassword,
       });
       if (error) throw error;
-      // Login is for admins: send them straight to the dashboard. Non-admin
-      // users have nothing else to see here, so send them back to the
-      // storefront.
-      router.push(data.user?.app_metadata?.role === "admin" ? "/admin" : "/");
+      router.push("/admin");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -53,36 +61,37 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <div className="flex flex-col items-center gap-2">
-        <CubeFace size="md" />
-        <span className="font-display text-lg font-bold tracking-tight">
-          Cube Store
-        </span>
+      <div className="flex items-center justify-end gap-1">
+        <LanguageSwitcher />
+        <ThemeSwitcher />
+      </div>
+      <div className="flex flex-col items-center">
+        <BrandLogo size="md" layout="stacked" priority />
       </div>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>
-            Enter your admin credentials to access the dashboard
-          </CardDescription>
+          <CardTitle className="text-2xl">{t("loginTitle")}</CardTitle>
+          <CardDescription>{t("loginSubtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("emailOrUsername")}</Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="m@example.com"
+                  type="text"
+                  dir="ltr"
+                  placeholder="elloll"
+                  autoComplete="username"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+                <Label htmlFor="password">{t("password")}</Label>
+                <div className="relative" dir="ltr">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -107,7 +116,7 @@ export function LoginForm({
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading ? t("loggingIn") : t("loginBtn")}
               </Button>
             </div>
           </form>

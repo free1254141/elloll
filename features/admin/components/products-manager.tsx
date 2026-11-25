@@ -17,16 +17,15 @@ import { ProductFormModal } from "@/features/admin/components/product-form-modal
 import { ConfirmDeleteModal } from "@/features/admin/components/confirm-delete-modal";
 import { Toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-
-const priceFormatter = new Intl.NumberFormat("en-PH", {
-  style: "currency",
-  currency: "PHP",
-});
+import { useLanguage } from "@/lib/i18n";
 
 export type AdminProduct = Product & { category_name: string | null };
 
-type Toast = { id: number; message: string; tone: "success" | "error" };
-type ModalState = { mode: "create" } | { mode: "edit"; product: AdminProduct; hasOrders: boolean } | null;
+type ToastState = { id: number; message: string; tone: "success" | "error" };
+type ModalState =
+  | { mode: "create" }
+  | { mode: "edit"; product: AdminProduct; hasOrders: boolean }
+  | null;
 
 export function ProductsManager({
   initialProducts,
@@ -35,6 +34,13 @@ export function ProductsManager({
   initialProducts: AdminProduct[];
   categories: Category[];
 }) {
+  const { locale } = useLanguage();
+  const isAr = locale === "ar";
+  const priceFormatter = new Intl.NumberFormat(isAr ? "ar-EG" : "en-EG", {
+    style: "currency",
+    currency: "EGP",
+  });
+
   const [products, setProducts] = useState(initialProducts);
   const [searchDraft, setSearchDraft] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -48,24 +54,22 @@ export function ProductsManager({
   const [toggling, setToggling] = useState<AdminProduct | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  // Sort conflict fix: only one sort can be active at a time
   function handlePriceSortChange(value: "asc" | "desc" | "") {
     setPriceSort(value);
-    if (value) setStockSort(""); // Clear stock sort
+    if (value) setStockSort("");
   }
 
   function handleStockSortChange(value: "asc" | "desc" | "") {
     setStockSort(value);
-    if (value) setPriceSort(""); // Clear price sort
+    if (value) setPriceSort("");
   }
+
   const [modal, setModal] = useState<ModalState>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
   const firstRender = useRef(true);
-  // Monotonic sequence so a slower earlier response can never overwrite a
-  // newer one when the user changes search + category quickly.
   const sequenceRef = useRef(0);
 
   useEffect(
@@ -76,9 +80,6 @@ export function ProductsManager({
     [],
   );
 
-  // Live updates (ADR-0011): follow fresh props from a Realtime-triggered
-  // refresh. The server page only knows the unfiltered list, so an active
-  // search/category filter is preserved by re-running the filtered query.
   useEffect(() => {
     if (searchDraft.trim() || categoryFilter || statusFilter) {
       void refresh(searchDraft, categoryFilter);
@@ -88,7 +89,7 @@ export function ProductsManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProducts]);
 
-  function showToast(message: string, tone: Toast["tone"]) {
+  function showToast(message: string, tone: ToastState["tone"]) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     const id = Date.now();
     setToast({ id, message, tone });
@@ -99,12 +100,9 @@ export function ProductsManager({
     const sequence = ++sequenceRef.current;
     const supabase = createClient();
     const result = await listAdminProducts(supabase, { q, categoryId });
-    // Drop stale responses (a newer search/category change already landed).
     if (sequence === sequenceRef.current) setProducts(result);
   }
 
-  // Debounced name search against the database. The mount render is skipped
-  // — the server page already provided the unfiltered list.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -129,7 +127,13 @@ export function ProductsManager({
       const next = toggling.status === "active" ? "inactive" : "active";
       const result = await toggleProductStatusAction(toggling.id, next);
       if (result.ok) {
-        showToast(`"${toggling.name}" is now ${next}`, "success");
+        const nextLabel = next === "active" ? (isAr ? "نشط" : "active") : isAr ? "مخفي" : "inactive";
+        showToast(
+          isAr
+            ? `أصبح "${toggling.name}" ${nextLabel} الآن`
+            : `"${toggling.name}" is now ${nextLabel}`,
+          "success",
+        );
         await refresh();
       } else {
         showToast(result.message, "error");
@@ -142,7 +146,6 @@ export function ProductsManager({
   }
 
   async function handleDeleteClick(product: AdminProduct) {
-    // Check for active orders before showing modal
     const supabase = createClient();
     const { data: orderItems } = await supabase
       .from("order_items")
@@ -158,18 +161,15 @@ export function ProductsManager({
         .in("status", ["pending", "confirmed", "preparing", "shipped"]);
 
       if (count && count > 0) {
-        // Has active orders — show warning modal
         setCanDelete({ product, allowed: false });
         return;
       }
     }
 
-    // No active orders — show normal confirmation modal
     setCanDelete({ product, allowed: true });
   }
 
   async function handleEditClick(product: AdminProduct) {
-    // Check for active orders before opening edit modal
     const supabase = createClient();
     const { data: orderItems } = await supabase
       .from("order_items")
@@ -198,7 +198,12 @@ export function ProductsManager({
     try {
       const result = await deleteProductAction(id);
       if (result.ok) {
-        showToast(`"${canDelete?.product.name}" deleted`, "success");
+        showToast(
+          isAr
+            ? `تم حذف "${canDelete?.product.name}"`
+            : `"${canDelete?.product.name}" deleted`,
+          "success",
+        );
         await refresh();
       } else {
         showToast(result.message, "error");
@@ -221,21 +226,18 @@ export function ProductsManager({
     setStockSort("");
   }
 
-  // Apply status filter
   let filteredProducts = statusFilter
     ? statusFilter === "out_of_stock"
       ? products.filter((p) => p.stock_quantity === 0)
       : products.filter((p) => p.status === statusFilter)
     : products;
 
-  // Apply price sort
   if (priceSort) {
     filteredProducts = [...filteredProducts].sort((a, b) =>
       priceSort === "asc" ? a.price - b.price : b.price - a.price,
     );
   }
 
-  // Apply stock sort
   if (stockSort) {
     filteredProducts = [...filteredProducts].sort((a, b) =>
       stockSort === "asc"
@@ -244,68 +246,84 @@ export function ProductsManager({
     );
   }
 
-  // Category filter options
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
   const statusOptions = [
-    { value: "active", label: "Active" },
-    { value: "inactive", label: "Inactive" },
-    { value: "out_of_stock", label: "Out of Stock" },
+    { value: "active", label: isAr ? "نشط (ظاهر)" : "Active" },
+    { value: "inactive", label: isAr ? "مخفي" : "Inactive" },
+    { value: "out_of_stock", label: isAr ? "نفد المخزون" : "Out of Stock" },
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isAr ? "المنتجات" : "Products"}
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          {isAr
+            ? "إدارة كتالوج المنتجات — التوفر يُحسب من المخزون، والحالة تتحكم في الظهور بالمتجر."
+            : "Manage the catalog. Availability comes from stock — status only controls storefront visibility."}
+        </p>
+      </div>
+
       {/* Toolbar: search + create button */}
       <div className="flex items-center gap-3">
         <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Search products…"
-            aria-label="Search products"
-            className="pl-8"
+            placeholder={isAr ? "ابحث عن منتج…" : "Search products…"}
+            aria-label={isAr ? "البحث في المنتجات" : "Search products"}
+            className="ps-8"
           />
         </div>
         <Button onClick={() => setModal({ mode: "create" })} className="shrink-0">
           <PackagePlus className="h-4 w-4" />
-          <span className="hidden sm:inline">New product</span>
+          <span className="hidden sm:inline">
+            {isAr ? "منتج جديد" : "New product"}
+          </span>
         </Button>
       </div>
 
       {/* Table */}
       <div className="min-h-[400px] max-h-[600px] overflow-x-auto overflow-y-auto rounded-xl border border-border bg-background">
-        <table className="w-full text-left text-sm">
+        <table className="w-full text-start text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 py-3 font-medium lg:px-4">Product</th>
+              <th className="px-3 py-3 text-start font-medium lg:px-4">
+                {isAr ? "المنتج" : "Product"}
+              </th>
               <ColumnHeader
-                label="Category"
-                className="px-3 py-3 font-medium lg:px-4"
+                label={isAr ? "القسم" : "Category"}
+                className="px-3 py-3 text-start font-medium lg:px-4"
                 filterValue={categoryFilter}
                 filterOptions={categoryOptions}
                 onFilterChange={setCategoryFilter}
               />
               <ColumnHeader
-                label="Price"
-                className="px-3 py-3 font-medium lg:px-4"
+                label={isAr ? "السعر" : "Price"}
+                className="px-3 py-3 text-start font-medium lg:px-4"
                 sortValue={priceSort}
                 onSortChange={handlePriceSortChange}
               />
               <ColumnHeader
-                label="Stock"
-                className="px-3 py-3 font-medium lg:px-4"
+                label={isAr ? "المخزون" : "Stock"}
+                className="px-3 py-3 text-start font-medium lg:px-4"
                 sortValue={stockSort}
                 onSortChange={handleStockSortChange}
               />
               <ColumnHeader
-                label="Status"
-                className="px-3 py-3 font-medium lg:px-4"
+                label={isAr ? "الحالة" : "Status"}
+                className="px-3 py-3 text-start font-medium lg:px-4"
                 filterValue={statusFilter}
                 filterOptions={statusOptions}
                 onFilterChange={setStatusFilter}
               />
-              <th className="px-3 py-3 text-right font-medium lg:px-4">Actions</th>
+              <th className="px-3 py-3 text-end font-medium lg:px-4">
+                {isAr ? "إجراءات" : "Actions"}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -314,8 +332,12 @@ export function ProductsManager({
                 <td colSpan={6} className="px-3 py-16 text-center lg:px-4">
                   <p className="text-sm text-muted-foreground">
                     {products.length === 0
-                      ? "No products yet."
-                      : "No products match. Try a different search, category, or status."}
+                      ? isAr
+                        ? "لا توجد منتجات بعد."
+                        : "No products yet."
+                      : isAr
+                        ? "لا توجد منتجات مطابقة. جرّب كلمة بحث أو قسماً أو حالة أخرى."
+                        : "No products match. Try a different search, category, or status."}
                   </p>
                   {products.length > 0 && (
                     <Button
@@ -324,7 +346,7 @@ export function ProductsManager({
                       onClick={clearFilters}
                       className="mt-4"
                     >
-                      Clear filters
+                      {isAr ? "مسح الفلاتر" : "Clear filters"}
                     </Button>
                   )}
                 </td>
@@ -333,7 +355,10 @@ export function ProductsManager({
               filteredProducts.map((product) => {
                 const outOfStock = product.stock_quantity === 0;
                 return (
-                  <tr key={product.id} className={cn(product.status !== "active" && "opacity-70")}>
+                  <tr
+                    key={product.id}
+                    className={cn(product.status !== "active" && "opacity-70")}
+                  >
                     <td className="px-3 py-3 lg:px-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
@@ -346,8 +371,8 @@ export function ProductsManager({
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-medium">{product.name}</p>
-                          <p className="hidden truncate text-xs text-muted-foreground lg:block">
-                            {product.description || "No description"}
+                          <p className="hidden max-w-md truncate text-xs text-muted-foreground lg:block">
+                            {product.description || (isAr ? "بدون وصف" : "No description")}
                           </p>
                         </div>
                       </div>
@@ -355,7 +380,9 @@ export function ProductsManager({
                     <td className="px-3 py-3 text-muted-foreground lg:px-4">
                       {product.category_name ?? "—"}
                     </td>
-                    <td className="px-3 py-3 tabular-nums lg:px-4">{priceFormatter.format(product.price)}</td>
+                    <td className="px-3 py-3 tabular-nums lg:px-4">
+                      {priceFormatter.format(product.price)}
+                    </td>
                     <td className="px-3 py-3 lg:px-4">
                       <span
                         className={cn(
@@ -371,9 +398,11 @@ export function ProductsManager({
                         type="button"
                         onClick={() => void handleToggle(product)}
                         disabled={busyId === product.id}
-                        aria-label={`Set ${product.name} ${
-                          product.status === "active" ? "inactive" : "active"
-                        }`}
+                        aria-label={
+                          isAr
+                            ? `تغيير حالة ${product.name}`
+                            : `Set ${product.name} ${product.status === "active" ? "inactive" : "active"}`
+                        }
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50",
                           product.status === "active"
@@ -393,7 +422,13 @@ export function ProductsManager({
                             )}
                           />
                         )}
-                        {product.status === "active" ? "Active" : "Inactive"}
+                        {product.status === "active"
+                          ? isAr
+                            ? "نشط"
+                            : "Active"
+                          : isAr
+                            ? "مخفي"
+                            : "Inactive"}
                       </button>
                     </td>
                     <td className="px-3 py-3 lg:px-4">
@@ -401,7 +436,7 @@ export function ProductsManager({
                         <button
                           type="button"
                           onClick={() => void handleEditClick(product)}
-                          aria-label={`Edit ${product.name}`}
+                          aria-label={isAr ? `تعديل ${product.name}` : `Edit ${product.name}`}
                           className={iconButton}
                         >
                           <Pencil className="h-4 w-4" />
@@ -409,7 +444,7 @@ export function ProductsManager({
                         <button
                           type="button"
                           onClick={() => void handleDeleteClick(product)}
-                          aria-label={`Delete ${product.name}`}
+                          aria-label={isAr ? `حذف ${product.name}` : `Delete ${product.name}`}
                           className={cn(
                             iconButton,
                             "hover:bg-destructive/10 hover:text-destructive",
@@ -419,7 +454,7 @@ export function ProductsManager({
                         </button>
                       </div>
                     </td>
-                   </tr>
+                  </tr>
                 );
               })
             )}
@@ -427,7 +462,6 @@ export function ProductsManager({
         </table>
       </div>
 
-      {/* Create/edit modal */}
       {modal && (
         <ProductFormModal
           mode={modal.mode}
@@ -442,14 +476,20 @@ export function ProductsManager({
         />
       )}
 
-      {/* Delete modals */}
       {canDelete && !canDelete.allowed && (
-        // Warning modal — product has active orders
         <ConfirmModal
-          title="Cannot delete product"
-          message={`"${canDelete.product.name}" cannot be deleted because it has been ordered.`}
-          warning="Consider marking it as inactive instead."
-          confirmLabel="Close"
+          title={isAr ? "لا يمكن حذف المنتج" : "Cannot delete product"}
+          message={
+            isAr
+              ? `لا يمكن حذف "${canDelete.product.name}" لأنه مرتبط بطلبات عملاء.`
+              : `"${canDelete.product.name}" cannot be deleted because it has been ordered.`
+          }
+          warning={
+            isAr
+              ? "يُفضل تغيير حالته إلى «مخفي» بدلاً من الحذف."
+              : "Consider marking it as inactive instead."
+          }
+          confirmLabel={isAr ? "إغلاق" : "Close"}
           hideCancel={true}
           busy={false}
           onConfirm={() => setCanDelete(null)}
@@ -458,35 +498,52 @@ export function ProductsManager({
       )}
 
       {canDelete && canDelete.allowed && (
-        // Normal confirmation modal
         <ConfirmDeleteModal
-          title="Delete product?"
-          message={`Are you sure you want to delete "${canDelete.product.name}"? This action cannot be undone.`}
+          title={isAr ? "حذف المنتج؟" : "Delete product?"}
+          message={
+            isAr
+              ? `هل أنت متأكد من حذف "${canDelete.product.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+              : `Are you sure you want to delete "${canDelete.product.name}"? This action cannot be undone.`
+          }
           busy={busyId === canDelete.product.id}
           onConfirm={() => void handleDelete(canDelete.product.id)}
           onCancel={() => setCanDelete(null)}
         />
       )}
 
-      {/* Status toggle confirmation modal */}
-      {toggling && (() => {
-        const nextStatus = toggling.status === "active" ? "inactive" : "active";
-        return (
-          <ConfirmModal
-            title="Update product status?"
-            message={`Change "${toggling.name}" from "${toggling.status}" to "${nextStatus}"?`}
-            confirmLabel="Update status"
-            confirmIcon={ArrowRight}
-            busy={busyId === toggling.id}
-            onConfirm={() => void handleToggleConfirm()}
-            onCancel={() => setToggling(null)}
-          />
-        );
-      })()}
+      {toggling &&
+        (() => {
+          const nextStatusLabel =
+            toggling.status === "active"
+              ? isAr
+                ? "مخفي"
+                : "inactive"
+              : isAr
+                ? "نشط"
+                : "active";
+          return (
+            <ConfirmModal
+              title={isAr ? "تحديث حالة المنتج؟" : "Update product status?"}
+              message={
+                isAr
+                  ? `تغيير حالة "${toggling.name}" إلى "${nextStatusLabel}"؟`
+                  : `Change "${toggling.name}" to "${nextStatusLabel}"?`
+              }
+              confirmLabel={isAr ? "تحديث الحالة" : "Update status"}
+              confirmIcon={ArrowRight}
+              busy={busyId === toggling.id}
+              onConfirm={() => void handleToggleConfirm()}
+              onCancel={() => setToggling(null)}
+            />
+          );
+        })()}
 
-      {/* Toast */}
       {toast && (
-        <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />
+        <Toast
+          message={toast.message}
+          tone={toast.tone}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

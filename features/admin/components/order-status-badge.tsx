@@ -1,8 +1,11 @@
+"use client";
+
 import {
-  ORDER_STATUS_LABELS,
+  getOrderStatusLabel,
   type OrderStatus,
 } from "@/features/admin/lib/orders/orders";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 /** Shared tone per status so the list and detail views can never drift apart. */
 export const ORDER_STATUS_BADGE_CLASSES: Record<OrderStatus, string> = {
@@ -21,6 +24,7 @@ export function OrderStatusBadge({
   status: OrderStatus;
   className?: string;
 }) {
+  const { locale } = useLanguage();
   return (
     <span
       className={cn(
@@ -29,7 +33,7 @@ export function OrderStatusBadge({
         className,
       )}
     >
-      {ORDER_STATUS_LABELS[status]}
+      {getOrderStatusLabel(status, locale)}
     </span>
   );
 }

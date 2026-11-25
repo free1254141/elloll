@@ -2,6 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { useLanguage } from "@/lib/i18n";
 
 export function ConfirmDeleteModal({
   title,
@@ -18,12 +19,13 @@ export function ConfirmDeleteModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { locale } = useLanguage();
   return (
     <ConfirmModal
       title={title}
       message={message}
       warning={warning}
-      confirmLabel="Delete"
+      confirmLabel={locale === "ar" ? "حذف" : "Delete"}
       confirmVariant="destructive"
       confirmIcon={Trash2}
       busy={busy}

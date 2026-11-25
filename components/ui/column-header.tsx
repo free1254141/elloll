@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 export type ColumnFilterOption = {
   value: string;
@@ -29,6 +30,8 @@ export function ColumnHeader({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const { locale } = useLanguage();
+  const isAr = locale === "ar";
   const menuRef = useRef<HTMLDivElement>(null);
   const hasFilter = filterOptions && filterOptions.length > 0 && onFilterChange;
   const hasSort = onSortChange;
@@ -86,11 +89,11 @@ export function ColumnHeader({
         </button>
 
         {open && (
-          <div className="absolute left-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+          <div className="absolute start-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
             {hasSort && (
               <div className="border-b border-border p-1">
                 <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Sort
+                  {isAr ? "ترتيب" : "Sort"}
                 </p>
                 <button
                   type="button"
@@ -103,7 +106,7 @@ export function ColumnHeader({
                     sortValue === "asc" && "bg-muted font-medium text-primary",
                   )}
                 >
-                  Low to High
+                  {isAr ? "من الأقل للأعلى" : "Low to High"}
                 </button>
                 <button
                   type="button"
@@ -116,14 +119,14 @@ export function ColumnHeader({
                     sortValue === "desc" && "bg-muted font-medium text-primary",
                   )}
                 >
-                  High to Low
+                  {isAr ? "من الأعلى للأقل" : "High to Low"}
                 </button>
               </div>
             )}
             {hasFilter && (
               <div className="p-1">
                 <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Filter
+                  {isAr ? "فلترة" : "Filter"}
                 </p>
                 <button
                   type="button"
@@ -136,7 +139,7 @@ export function ColumnHeader({
                     (!filterValue || filterValue === "") && "bg-muted font-medium text-primary",
                   )}
                 >
-                  All
+                  {isAr ? "الكل" : "All"}
                 </button>
                 {filterOptions.map((opt) => (
                   <button

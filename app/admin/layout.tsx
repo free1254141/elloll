@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { CubeFace } from "@/components/cube-face";
+import { BrandLogo } from "@/components/brand-logo";
 import AdminGate from "@/features/admin/components/admin-gate";
 
 export default function AdminLayout({
@@ -12,9 +12,9 @@ export default function AdminLayout({
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-muted/30">
           <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in-50 duration-500">
-            <CubeFace size="md" animated />
+            <BrandLogo variant="icon" size="md" animated priority />
             <p className="text-sm text-muted-foreground animate-in fade-in duration-500 delay-300">
-              Loading dashboard…
+              جاري تحميل لوحة التحكم…
             </p>
           </div>
         </div>

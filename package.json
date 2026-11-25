@@ -5,7 +5,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File scripts/build-apk.ps1"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.14",

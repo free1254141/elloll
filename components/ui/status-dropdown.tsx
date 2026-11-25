@@ -72,7 +72,7 @@ export function StatusDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+        <div className="absolute end-0 top-full z-50 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
           <div className="p-1">
             {options.map((opt) => (
               <button

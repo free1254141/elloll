@@ -17,6 +17,9 @@ export type Product = {
   image_url: string;
   status: ProductStatus;
   category_id: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  seo_keywords?: string | null;
 };
 
 export const PRODUCT_COLUMNS =
@@ -24,11 +27,15 @@ export const PRODUCT_COLUMNS =
 
 export type CatalogSort = "newest" | "price-asc" | "price-desc";
 
+export type PriceRangeKey = "all" | "under-500" | "500-1500" | "over-1500";
+
 /** The raw URL query shape of the /products listing, as Next passes it. */
 export type ProductsSearchParams = {
   q?: string;
   category?: string;
   sort?: string;
+  price?: string;
+  stock?: string;
   page?: string;
 };
 
@@ -79,6 +86,8 @@ export type CatalogParams = {
   /** Filter to a single Category by id. */
   categoryId?: string | null | undefined;
   sort?: CatalogSort;
+  inStockOnly?: boolean;
+  priceRange?: PriceRangeKey;
   /** 1-based page number. */
   page?: number;
   pageSize?: number;
@@ -120,6 +129,16 @@ export async function searchCatalog(
   }
   if (params.categoryId) {
     query = query.eq("category_id", params.categoryId);
+  }
+  if (params.inStockOnly) {
+    query = query.gt("stock_quantity", 0);
+  }
+  if (params.priceRange === "under-500") {
+    query = query.lt("price", 500);
+  } else if (params.priceRange === "500-1500") {
+    query = query.gte("price", 500).lte("price", 1500);
+  } else if (params.priceRange === "over-1500") {
+    query = query.gt("price", 1500);
   }
 
   if (sort === "price-asc") {

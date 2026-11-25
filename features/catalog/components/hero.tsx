@@ -3,30 +3,39 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CubeFace } from "@/components/cube-face";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
+import { useLanguage, type TranslationKey } from "@/lib/i18n";
 
-const SLIDES = [
+const SLIDES: {
+  titleKey: TranslationKey;
+  descKey: TranslationKey;
+  image: string;
+}[] = [
   {
-    title: "New Arrivals",
-    description: "Fresh puzzles, brain teasers, and desk toys just landed.",
-    image: "https://images.unsplash.com/photo-1577401239170-897942555fb3?w=1400&h=700&fit=crop",
+    titleKey: "slide1Title",
+    descKey: "slide1Desc",
+    image:
+      "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1400&h=700&fit=crop",
   },
   {
-    title: "Summer Sale",
-    description: "Up to 20% off selected items — limited time only.",
-    image: "https://images.unsplash.com/photo-1560343776-97e7d202ff0e?w=1400&h=700&fit=crop",
+    titleKey: "slide2Title",
+    descKey: "slide2Desc",
+    image:
+      "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1400&h=700&fit=crop",
   },
   {
-    title: "Collectors Edition",
-    description: "Premium puzzles and desk objects for the serious enthusiast.",
-    image: "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=1400&h=700&fit=crop",
+    titleKey: "slide3Title",
+    descKey: "slide3Desc",
+    image:
+      "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1400&h=700&fit=crop",
   },
 ];
 
 export function Hero() {
   const [current, setCurrent] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { t } = useLanguage();
 
   const stopAutoplay = useCallback(() => {
     if (timer.current) clearInterval(timer.current);
@@ -71,52 +80,49 @@ export function Hero() {
         ))}
       </div>
 
-      {/* Gradient overlay — adapts to theme */}
-      <div className="absolute inset-0 -z-20 bg-gradient-to-br from-background/70 via-background/40 to-background/20 dark:from-background/80 dark:via-background/60 dark:to-background/40" />
+      {/* Gradient overlay — adapts cleanly to pure black dark mode & warm light mode */}
+      <div className="absolute inset-0 -z-20 bg-gradient-to-b from-background/80 via-background/65 to-background/95 dark:from-background/85 dark:via-background/75 dark:to-background" />
 
-      {/* Faint lattice — the cube's face grid, faded toward the edges. */}
+      {/* Subtle grid texture */}
       <div
         aria-hidden
         className="bg-grid pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_55%_55%_at_50%_30%,black,transparent)]"
       />
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-5 py-12 text-center sm:py-20">
-        {/* The signature: a sticker face that scrambles and solves itself. */}
-        <CubeFace size="md" animated />
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-5 py-14 text-center sm:py-20">
+        <BrandLogo size="lg" animated priority />
 
         <h1 className="font-display text-4xl font-bold tracking-tight sm:text-6xl">
-          Every piece, a{" "}
-          <span className="bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent">
-            new challenge
+          {t("heroTitleLead")}{" "}
+          <span className="bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 bg-clip-text text-transparent">
+            {t("heroTitleHighlight")}
           </span>
-          .
         </h1>
 
-        <p className="max-w-xl text-lg leading-relaxed text-foreground/70">
-          Speed cubes, brain teasers, desk toys, and collectibles — curated for
-          every kind of puzzler.
+        <p className="max-w-2xl text-base leading-relaxed text-foreground/80 sm:text-lg">
+          {t("heroSubtitle")}
         </p>
 
         <div className="flex w-full justify-center sm:w-auto">
           <Button asChild size="lg" className="w-full sm:w-auto">
-            <Link href="/products">Shop the catalog</Link>
+            <Link href="/products">{t("heroCtaPrimary")}</Link>
           </Button>
         </div>
       </div>
 
       {/* Slide indicators */}
-      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2">
-        {SLIDES.map((_, index) => (
+      <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 gap-2">
+        {SLIDES.map((slide, index) => (
           <button
             key={index}
             type="button"
             onClick={() => goTo(index)}
-            aria-label={`Go to slide ${index + 1}`}
+            aria-label={t(slide.titleKey)}
             aria-current={index === current ? "true" : undefined}
             className={cn(
               "h-2 rounded-full transition-all duration-300",
               index === current
-                ? "w-6 bg-primary"
+                ? "w-6 bg-amber-500"
                 : "w-2 bg-muted-foreground/40 hover:bg-muted-foreground/60",
             )}
           />

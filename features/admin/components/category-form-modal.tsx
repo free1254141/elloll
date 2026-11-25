@@ -6,6 +6,7 @@ import { FolderPlus, Loader2, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/lib/i18n";
 
 export function CategoryFormModal({
   mode = "create",
@@ -20,14 +21,18 @@ export function CategoryFormModal({
   onClose: () => void;
   onSaved: (name: string) => void;
 }) {
+  const { locale } = useLanguage();
+  const isAr = locale === "ar";
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Dirty check: compare current values with initial values.
-  const isDirty = mode === "create" || name.trim() !== initialName || slug.trim() !== initialSlug;
+  const isDirty =
+    mode === "create" ||
+    name.trim() !== initialName ||
+    slug.trim() !== initialSlug;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -42,21 +47,20 @@ export function CategoryFormModal({
     };
   }, [onClose]);
 
-  // Auto-generate slug from name.
   function handleNameChange(value: string) {
     setName(value);
-    // Only auto-generate slug if user hasn't manually edited it.
     if (!slug || slug === slugify(name)) {
       setSlug(slugify(value));
     }
   }
 
   function slugify(text: string): string {
-    return text
+    const ascii = text
       .toLowerCase()
       .trim()
-      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")
       .replace(/^-+|-+$/g, "");
+    return ascii || "category";
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -64,11 +68,11 @@ export function CategoryFormModal({
     if (submitting) return;
 
     if (!name.trim()) {
-      setError("Category name is required.");
+      setError(isAr ? "اسم القسم مطلوب." : "Category name is required.");
       return;
     }
     if (!slug.trim()) {
-      setError("Slug is required.");
+      setError(isAr ? "الرابط المختصر مطلوب." : "Slug is required.");
       return;
     }
 
@@ -78,7 +82,7 @@ export function CategoryFormModal({
       onSaved(name.trim());
       onClose();
     } catch {
-      setError("Something went wrong.");
+      setError(isAr ? "حدث خطأ غير متوقع." : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
@@ -88,7 +92,7 @@ export function CategoryFormModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Close"
+        aria-label={isAr ? "إغلاق" : "Close"}
         onClick={onClose}
         className="absolute inset-0 h-full w-full bg-black/50 backdrop-blur-sm"
       />
@@ -102,12 +106,18 @@ export function CategoryFormModal({
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 id="category-form-title" className="text-lg font-bold tracking-tight">
-            {mode === "create" ? "New category" : "Edit category"}
+            {mode === "create"
+              ? isAr
+                ? "إضافة قسم جديد"
+                : "New category"
+              : isAr
+                ? "تعديل القسم"
+                : "Edit category"}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={isAr ? "إغلاق" : "Close"}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -117,27 +127,34 @@ export function CategoryFormModal({
         <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div>
-              <Label htmlFor="category-name">Name</Label>
+              <Label htmlFor="category-name">
+                {isAr ? "اسم القسم" : "Name"}
+              </Label>
               <Input
                 id="category-name"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Speed Cubes"
+                placeholder={isAr ? "مثال: هوديز وسويت شيرت" : "Hoodies & Sweatshirts"}
                 className="mt-1.5"
               />
             </div>
 
             <div>
-              <Label htmlFor="category-slug">Slug</Label>
+              <Label htmlFor="category-slug">
+                {isAr ? "الرابط المختصر (Slug)" : "Slug"}
+              </Label>
               <Input
                 id="category-slug"
+                dir="ltr"
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                placeholder="speed-cubes"
+                placeholder="hoodies"
                 className="mt-1.5"
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Auto-generated from the name. Used in URLs.
+                {isAr
+                  ? "يُولّد تلقائياً من اسم القسم ويُستخدم في روابط المتجر."
+                  : "Auto-generated from the name. Used in URLs."}
               </p>
             </div>
 
@@ -153,7 +170,7 @@ export function CategoryFormModal({
 
           <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-4">
             <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
-              Cancel
+              {isAr ? "إلغاء" : "Cancel"}
             </Button>
             <Button type="submit" disabled={submitting || !isDirty}>
               {submitting ? (
@@ -163,7 +180,13 @@ export function CategoryFormModal({
               ) : (
                 <Pencil className="h-4 w-4" />
               )}
-              {mode === "create" ? "Create category" : "Save changes"}
+              {mode === "create"
+                ? isAr
+                  ? "إنشاء القسم"
+                  : "Create category"
+                : isAr
+                  ? "حفظ التعديلات"
+                  : "Save changes"}
             </Button>
           </div>
         </form>

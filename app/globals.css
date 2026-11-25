@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     /* Cube Store tokens — warm, premium neutrals with the sticker palette
        as the accent system. Light mode evokes a well-lit puzzle shop. */
     --background: 35 30% 94%;
@@ -39,25 +40,26 @@
     --radius: 0.75rem;
   }
   .dark {
-    /* Dark mode — deep, sophisticated, collector's display case. */
-    --background: 230 30% 5%;
-    --foreground: 30 15% 94%;
-    --card: 230 25% 8%;
-    --card-foreground: 30 15% 94%;
-    --popover: 230 25% 8%;
-    --popover-foreground: 30 15% 94%;
+    color-scheme: dark;
+    /* Dark mode — true neutral black (zero blue/navy tint). */
+    --background: 0 0% 2%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 96%;
     --primary: 218 92% 63%;
-    --primary-foreground: 230 30% 5%;
-    --secondary: 230 20% 12%;
-    --secondary-foreground: 30 15% 94%;
-    --muted: 230 20% 12%;
-    --muted-foreground: 230 10% 52%;
-    --accent: 230 20% 13%;
-    --accent-foreground: 30 15% 94%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 96%;
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 230 15% 15%;
-    --input: 230 15% 17%;
+    --border: 0 0% 14%;
+    --input: 0 0% 16%;
     --ring: 218 92% 63%;
     --chart-1: 218 92% 63%;
     --chart-2: 38 95% 58%;
@@ -77,6 +79,14 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  select {
+    color-scheme: inherit;
+  }
+  select option,
+  select optgroup {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
   }
   /* Suppress native browser password-reveal icons so the custom toggle is the only one. */
   input::-ms-reveal,

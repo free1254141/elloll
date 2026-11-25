@@ -12,24 +12,27 @@ import {
   YAxis,
 } from "recharts";
 import type { ChartDataPoint } from "@/features/admin/lib/admin";
+import { useLanguage } from "@/lib/i18n";
 
-const currency = new Intl.NumberFormat("en-PH", {
+const currency = new Intl.NumberFormat("en-EG", {
   style: "currency",
-  currency: "PHP",
+  currency: "EGP",
   maximumFractionDigits: 0,
 });
 
 export function AdminCharts({ data }: { data: ChartDataPoint[] }) {
+  const { locale } = useLanguage();
+  const isAr = locale === "ar";
   return (
     <div className="grid gap-6 sm:grid-cols-2">
       <section className="rounded-xl border border-border bg-background p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Orders over time
+          {isAr ? "الطلبات عبر الزمن" : "Orders over time"}
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Last 6 months
+          {isAr ? "آخر 6 أشهر" : "Last 6 months"}
         </p>
-        <div className="mt-4 h-64">
+        <div className="mt-4 h-64" dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -44,6 +47,10 @@ export function AdminCharts({ data }: { data: ChartDataPoint[] }) {
                 className="text-muted-foreground"
               />
               <Tooltip
+                formatter={(value) => [
+                  Number(value),
+                  isAr ? "الطلبات" : "Orders",
+                ]}
                 contentStyle={{
                   borderRadius: 8,
                   border: "1px solid hsl(var(--border))",
@@ -66,12 +73,12 @@ export function AdminCharts({ data }: { data: ChartDataPoint[] }) {
 
       <section className="rounded-xl border border-border bg-background p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Revenue by month
+          {isAr ? "الإيرادات الشهرية" : "Revenue by month"}
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Last 6 months
+          {isAr ? "آخر 6 أشهر" : "Last 6 months"}
         </p>
-        <div className="mt-4 h-64">
+        <div className="mt-4 h-64" dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -86,7 +93,10 @@ export function AdminCharts({ data }: { data: ChartDataPoint[] }) {
                 className="text-muted-foreground"
               />
               <Tooltip
-                formatter={(value) => currency.format(Number(value))}
+                formatter={(value) => [
+                  currency.format(Number(value)),
+                  isAr ? "الإيرادات" : "Revenue",
+                ]}
                 contentStyle={{
                   borderRadius: 8,
                   border: "1px solid hsl(var(--border))",

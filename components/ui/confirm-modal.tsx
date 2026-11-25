@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Loader2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/lib/i18n";
 
 export type ConfirmModalProps = {
   title: string;
@@ -31,6 +32,8 @@ export function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const { locale } = useLanguage();
+  const isAr = locale === "ar";
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -76,7 +79,7 @@ export function ConfirmModal({
         <div className="flex items-center justify-end gap-3 px-6 py-4">
           {!hideCancel && (
             <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
-              Cancel
+              {isAr ? "إلغاء" : "Cancel"}
             </Button>
           )}
           <Button type="button" variant={confirmVariant} onClick={onConfirm} disabled={busy}>

@@ -13,6 +13,8 @@ const ADMIN_TABLES = [
   "customers",
   "products",
   "categories",
+  "support_tickets",
+  "support_messages",
 ] as const;
 
 /**

@@ -1,0 +1,43 @@
+{
+  "packageId": "com.elloll.store",
+  "host": "elloll.vercel.app",
+  "name": "elloll — أزياء وملابس عصرية في مصر",
+  "launcherName": "elloll",
+  "display": "standalone",
+  "themeColor": "#09090b",
+  "themeColorDark": "#09090b",
+  "navigationColor": "#09090b",
+  "navigationColorDark": "#09090b",
+  "navigationDividerColor": "#18181b",
+  "navigationDividerColorDark": "#18181b",
+  "backgroundColor": "#09090b",
+  "enableNotifications": true,
+  "startUrl": "/?source=twa",
+  "iconUrl": "https://elloll.vercel.app/icon-512.png",
+  "maskableIconUrl": "https://elloll.vercel.app/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "elloll"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "كل المنتجات",
+      "shortName": "المنتجات",
+      "url": "/products",
+      "chosenIconUrl": "https://elloll.vercel.app/icon-192.png"
+    },
+    {
+      "name": "تتبع طلبي",
+      "shortName": "الطلبات",
+      "url": "/track",
+      "chosenIconUrl": "https://elloll.vercel.app/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://elloll.vercel.app/manifest.json",
+  "fallbackType": "customtabs",
+  "enableSiteSettingsShortcut": true
+}

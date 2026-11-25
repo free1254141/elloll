@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, X } from "lucide-react";
-import { CubeFace } from "@/components/cube-face";
+import { BrandLogo } from "@/components/brand-logo";
+import { useLanguage, type TranslationKey } from "@/lib/i18n";
 
-const drawerLinks = [
-  { href: "/", label: "Home" },
-  { href: "/products", label: "Products" },
-  { href: "/track", label: "Track Order" },
+const drawerLinks: { href: string; key: TranslationKey }[] = [
+  { href: "/", key: "home" },
+  { href: "/products", key: "products" },
+  { href: "/track", key: "trackOrder" },
 ];
 
 export function StorefrontDrawer() {
@@ -19,6 +20,7 @@ export function StorefrontDrawer() {
   const panelRef = useRef<HTMLDivElement>(null);
   const hasOpened = useRef(false);
   const pathname = usePathname();
+  const { t, dir } = useLanguage();
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +37,6 @@ export function StorefrontDrawer() {
     };
   }, [open]);
 
-  // Move focus into the panel on open and return it to the trigger on close.
   useEffect(() => {
     if (open) {
       hasOpened.current = true;
@@ -51,7 +52,7 @@ export function StorefrontDrawer() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open menu"
+        aria-label={t("openMenu")}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls="store-drawer"
@@ -60,21 +61,14 @@ export function StorefrontDrawer() {
         <Menu className="h-5 w-5" />
       </button>
 
-      {/*
-        The overlay is portaled to <body>: the sticky header uses
-        backdrop-blur, and backdrop-filter makes the header the containing
-        block for fixed descendants. Without the portal, the drawer's
-        `fixed inset-0` overlay would be trapped inside the 64px header
-        instead of covering the viewport (invisible sidebar on mobile).
-      */}
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-50">
+          <div className="fixed inset-0 z-50" dir={dir}>
             <button
               type="button"
-              aria-label="Close menu"
+              aria-label={t("closeMenu")}
               onClick={() => setOpen(false)}
-              className="absolute inset-0 h-full w-full bg-black/50 backdrop-blur-sm"
+              className="absolute inset-0 h-full w-full bg-black/60 backdrop-blur-sm"
             />
             <div
               ref={panelRef}
@@ -85,17 +79,12 @@ export function StorefrontDrawer() {
               tabIndex={-1}
               className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-r border-border bg-background p-4 shadow-xl outline-none"
             >
-              <div className="mb-2 flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <CubeFace size="sm" />
-                  <span className="font-display text-sm font-semibold tracking-tight">
-                    Cube Store
-                  </span>
-                </span>
+              <div dir="ltr" className="mb-2 flex items-center justify-between">
+                <BrandLogo size="sm" />
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  aria-label="Close menu"
+                  aria-label={t("closeMenu")}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <X className="h-5 w-5" />
@@ -115,7 +104,7 @@ export function StorefrontDrawer() {
                       onClick={() => setOpen(false)}
                       className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-muted text-foreground font-semibold" : "text-muted-foreground hover:bg-muted"}`}
                     >
-                      {link.label}
+                      {t(link.key)}
                     </Link>
                   );
                 })}

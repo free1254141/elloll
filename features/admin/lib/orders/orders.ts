@@ -41,11 +41,44 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: "Cancelled",
 };
 
+export const ORDER_STATUS_LABELS_AR: Record<OrderStatus, string> = {
+  pending: "قيد الانتظار",
+  confirmed: "مؤكد",
+  preparing: "جاري التجهيز",
+  shipped: "تم الشحن",
+  completed: "مكتمل",
+  cancelled: "ملغي",
+};
+
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cod: "Cash on delivery",
   ewallet: "E-wallet",
   bank_transfer: "Bank transfer",
 };
+
+export const PAYMENT_METHOD_LABELS_AR: Record<PaymentMethod, string> = {
+  cod: "الدفع عند الاستلام",
+  ewallet: "محفظة إلكترونية / إنستاباي",
+  bank_transfer: "تحويل بنكي",
+};
+
+export function getOrderStatusLabel(
+  status: OrderStatus,
+  locale: "ar" | "en" = "ar",
+): string {
+  return locale === "ar"
+    ? ORDER_STATUS_LABELS_AR[status] ?? status
+    : ORDER_STATUS_LABELS[status] ?? status;
+}
+
+export function getPaymentMethodLabel(
+  method: PaymentMethod,
+  locale: "ar" | "en" = "ar",
+): string {
+  return locale === "ar"
+    ? PAYMENT_METHOD_LABELS_AR[method] ?? method
+    : PAYMENT_METHOD_LABELS[method] ?? method;
+}
 
 export const LIFECYCLE: Exclude<OrderStatus, "cancelled">[] = [
   "pending",

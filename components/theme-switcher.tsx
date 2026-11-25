@@ -1,68 +1,49 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Laptop, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/lib/i18n";
 
 const ThemeSwitcher = () => {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { t } = useLanguage();
 
-  // useEffect only runs on the client, so now we can safely show the UI
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (mounted && theme !== "light" && theme !== "dark") {
+      setTheme("dark");
+    }
+  }, [mounted, theme, setTheme]);
+
   if (!mounted) {
-    return (
-      <div className="h-9 w-9" />
-    );
+    return <div className="h-9 w-9" />;
   }
 
-  const ICON_SIZE = 16;
+  const activeTheme = theme === "light" ? "light" : "dark";
+  const nextTheme = activeTheme === "dark" ? "light" : "dark";
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
-          {theme === "light" ? (
-            <Sun key="light" size={ICON_SIZE} />
-          ) : theme === "dark" ? (
-            <Moon key="dark" size={ICON_SIZE} />
-          ) : (
-            <Laptop key="system" size={ICON_SIZE} />
-          )}
-          <span className="sr-only">Toggle theme</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-content" align="end">
-        <DropdownMenuRadioGroup
-          value={theme}
-          onValueChange={(e) => setTheme(e)}
-        >
-          <DropdownMenuRadioItem className="flex gap-2" value="light">
-            <Sun size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>Light</span>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="dark">
-            <Moon size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>Dark</span>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="system">
-            <Laptop size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>System</span>
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(nextTheme)}
+      aria-label={t("toggleTheme")}
+      title={activeTheme === "dark" ? t("lightMode") : t("darkMode")}
+      className="h-9 w-9 text-muted-foreground hover:text-foreground"
+    >
+      {activeTheme === "dark" ? (
+        <Sun size={16} className="transition-transform duration-200 hover:rotate-12" />
+      ) : (
+        <Moon size={16} className="transition-transform duration-200 hover:-rotate-12" />
+      )}
+    </Button>
   );
 };
 

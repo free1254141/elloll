@@ -15,8 +15,9 @@ export function RouteAwareThemeProvider({
     <ThemeProvider
       key={isAdmin ? "admin" : "storefront"}
       attribute="class"
-      defaultTheme="system"
-      enableSystem
+      defaultTheme="dark"
+      enableSystem={false}
+      themes={["light", "dark"]}
       disableTransitionOnChange
       storageKey={isAdmin ? "admin-theme" : "theme"}
     >

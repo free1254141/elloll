@@ -15,10 +15,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Geist (body) + Space Grotesk (display) — wired via next/font
-        // variables in app/layout.tsx.
-        sans: ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["var(--font-space-grotesk)", "var(--font-geist-sans)", "sans-serif"],
+        // Cairo (Arabic + Latin) + Geist (body) + Space Grotesk (display)
+        sans: ["var(--font-cairo)", "var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-cairo)", "var(--font-space-grotesk)", "var(--font-geist-sans)", "sans-serif"],
       },
       colors: {
         background: "hsl(var(--background))",

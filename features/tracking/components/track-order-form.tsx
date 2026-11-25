@@ -8,13 +8,13 @@ import { OrderStatusBar } from "@/features/tracking/components/order-status-bar"
 import { downloadReceipt } from "@/features/tracking/lib/download-receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { PaymentMethod } from "@/features/checkout/lib/checkout";
+import { useLanguage } from "@/lib/i18n";
 
 const STORAGE_KEY = "cube-store-tracking";
 
-const priceFormatter = new Intl.NumberFormat("en-PH", {
+const priceFormatter = new Intl.NumberFormat("en-EG", {
   style: "currency",
-  currency: "PHP",
+  currency: "EGP",
 });
 
 function loadSaved(): { orderNumber: string; email: string } | null {
@@ -36,6 +36,7 @@ function saveTracking(orderNumber: string, email: string) {
 }
 
 export function TrackOrderForm() {
+  const { t } = useLanguage();
   const saved = useRef(loadSaved());
   const [orderNumber, setOrderNumber] = useState(saved.current?.orderNumber ?? "");
   const [email, setEmail] = useState(saved.current?.email ?? "");
@@ -139,22 +140,24 @@ export function TrackOrderForm() {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
+              dir="ltr"
               value={orderNumber}
               onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="Order number (e.g., ORD-20260810-0001)"
-              aria-label="Order number"
-              className="pl-9"
+              placeholder={t("trackOrderNumberPh")}
+              aria-label={t("trackOrderNumberPh")}
+              className="ps-9"
             />
           </div>
           <Input
             type="email"
+            dir="ltr"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email used at checkout"
-            aria-label="Email address"
+            placeholder={t("trackEmailPh")}
+            aria-label={t("trackEmailPh")}
           />
         </div>
         <Button
@@ -162,7 +165,7 @@ export function TrackOrderForm() {
           disabled={loading || !orderNumber.trim() || !email.trim()}
           className="w-full sm:w-auto"
         >
-          {loading ? "Searching…" : "Track order"}
+          {loading ? t("searching") : t("trackBtn")}
         </Button>
       </form>
 
@@ -184,18 +187,18 @@ export function TrackOrderForm() {
           {/* Status update notification */}
           {updated && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-700 dark:text-emerald-400">
-              <RefreshCw className="mr-2 inline-block h-4 w-4 animate-spin" />
-              Order status updated!
+              <RefreshCw className="me-2 inline-block h-4 w-4 animate-spin" />
+              {t("statusUpdatedLive")}
             </div>
           )}
 
           {/* Status Bar */}
           <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-            <h2 className="mb-1 font-display text-lg font-bold tracking-tight">
+            <h2 className="mb-1 font-display text-lg font-bold tracking-tight" dir="ltr">
               {result.orderNumber}
             </h2>
             <p className="mb-5 text-sm text-muted-foreground">
-              Status:{" "}
+              {t("orderStatusLabel")}:{" "}
               <span className="font-medium text-foreground">
                 {ORDER_STATUS_LABELS[result.status]}
               </span>
@@ -206,7 +209,7 @@ export function TrackOrderForm() {
           {/* Order Summary */}
           <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Order summary
+              {t("orderSummary")}
             </h3>
             <ul className="divide-y divide-border">
               {result.items.map((item, i) => (
@@ -245,7 +248,7 @@ export function TrackOrderForm() {
             </ul>
 
             <div className="mt-4 flex items-center justify-between border-t border-border pt-4 text-sm font-semibold sm:text-base">
-              <span>Total</span>
+              <span>{t("totalLabel")}</span>
               <span className="tabular-nums">
                 {priceFormatter.format(result.totalAmount)}
               </span>
@@ -254,10 +257,10 @@ export function TrackOrderForm() {
             <Button
               onClick={handleDownloadReceipt}
               variant="outline"
-              className="mt-4 w-full"
+              className="mt-4 w-full gap-2"
             >
               <Download className="h-4 w-4" />
-              Download receipt
+              {t("downloadReceipt")}
             </Button>
           </div>
         </div>

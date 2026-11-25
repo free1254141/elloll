@@ -10,15 +10,17 @@ import {
 } from "@/features/cart/lib/cart";
 import { useCartReconcile } from "@/features/cart/lib/use-cart-reconcile";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/lib/i18n";
 
-const priceFormatter = new Intl.NumberFormat("en-PH", {
+const priceFormatter = new Intl.NumberFormat("en-EG", {
   style: "currency",
-  currency: "PHP",
+  currency: "EGP",
 });
 
 export function CartView() {
   const items = useCartStore((state) => state.items);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
+  const { t } = useLanguage();
 
   if (!hasHydrated) {
     return (
@@ -36,13 +38,13 @@ export function CartView() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-10">
-      <Button asChild variant="ghost" size="sm" className="-ml-3 mb-2 text-muted-foreground">
+      <Button asChild variant="ghost" size="sm" className="mb-2 text-muted-foreground">
         <Link href="/products">
           <ArrowLeft className="h-4 w-4" />
-          Back to products
+          {t("backToProducts")}
         </Link>
       </Button>
-      <h1 className="font-display text-3xl font-bold tracking-tight">Your cart</h1>
+      <h1 className="font-display text-3xl font-bold tracking-tight">{t("yourCart")}</h1>
 
       {items.length === 0 ? (
         <EmptyCart />
@@ -56,10 +58,9 @@ export function CartView() {
 function CartContents() {
   const items = useCartStore((state) => state.items);
   const removeItem = useCartStore((state) => state.removeItem);
+  const { t } = useLanguage();
   const subtotal = cartSubtotal(items);
   const count = cartCount(items);
-  // Keep lines in line with the live catalog (ADR-0013): prices/stock refresh,
-  // retired Products get flagged. The returned result drives the notices.
   const reconciled = useCartReconcile();
   const unavailableCount = items.filter((item) => item.unavailable).length;
 
@@ -68,14 +69,13 @@ function CartContents() {
       <div className="min-w-0">
         {reconciled && reconciled.updated.length > 0 && (
           <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
-            Cart updated to match the current catalog.
+            {t("cartUpdatedNotice")}
           </p>
         )}
         {unavailableCount > 0 && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2.5">
             <p className="text-sm font-medium text-destructive">
-              {unavailableCount} item{unavailableCount === 1 ? " is" : "s are"} no longer
-              available.
+              {unavailableCount} {t("unavailableRemove")}
             </p>
             <Button
               size="sm"
@@ -86,7 +86,7 @@ function CartContents() {
                   .forEach((item) => removeItem(item.id));
               }}
             >
-              Remove unavailable
+              {t("removeUnavailable")}
             </Button>
           </div>
         )}
@@ -99,37 +99,39 @@ function CartContents() {
 
       <aside className="h-fit rounded-xl border border-border bg-card p-5 lg:sticky lg:top-24">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Order summary
+          {t("orderSummary")}
         </h2>
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">
-              Items ({count})
+              {t("itemsLabel")} ({count})
             </dt>
             <dd className="font-medium tabular-nums">
               {priceFormatter.format(subtotal)}
             </dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">Shipping</dt>
-            <dd className="font-medium">{subtotal >= 2500 ? "Free" : "Calculated at checkout"}</dd>
+            <dt className="text-muted-foreground">{t("shippingLabel")}</dt>
+            <dd className="font-medium">
+              {subtotal >= 2500 ? t("freeLabel") : t("calculatedAtCheckout")}
+            </dd>
           </div>
           <div className="flex justify-between border-t border-border pt-3 text-base font-semibold">
-            <dt>Total</dt>
+            <dt>{t("totalLabel")}</dt>
             <dd className="tabular-nums">{priceFormatter.format(subtotal)}</dd>
           </div>
         </dl>
         {unavailableCount > 0 ? (
           <Button size="lg" className="mt-5 w-full" disabled>
-            Checkout
+            {t("proceedCheckout")}
           </Button>
         ) : (
           <Button asChild size="lg" className="mt-5 w-full">
-            <Link href="/checkout">Checkout</Link>
+            <Link href="/checkout">{t("proceedCheckout")}</Link>
           </Button>
         )}
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Stock is reserved when you place your order.
+          {t("stockReservedHint")}
         </p>
       </aside>
     </div>
@@ -222,17 +224,18 @@ function CartLine({ item }: { item: CartItem }) {
 }
 
 function EmptyCart() {
+  const { t } = useLanguage();
   return (
     <div className="mt-8 rounded-xl border border-dashed border-border p-12 text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <ShoppingCart className="h-7 w-7 text-muted-foreground" />
       </div>
-      <p className="mt-4 text-sm font-medium">Your cart is empty</p>
+      <p className="mt-4 text-sm font-medium">{t("emptyCartTitle")}</p>
       <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-        Add a few items from the catalog and they will appear here.
+        {t("emptyCartDesc")}
       </p>
       <Button asChild className="mt-6">
-        <Link href="/products">Browse products</Link>
+        <Link href="/products">{t("browseProducts")}</Link>
       </Button>
     </div>
   );

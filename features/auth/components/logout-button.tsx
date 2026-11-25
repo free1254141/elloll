@@ -6,9 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/i18n";
 
 export function LogoutButton() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -25,15 +27,15 @@ export function LogoutButton() {
 
   return (
     <>
-      <Button onClick={() => setShowConfirm(true)}>
+      <Button onClick={() => setShowConfirm(true)} className="w-full gap-2">
         <LogOut className="h-4 w-4" />
-        Logout
+        {t("logout")}
       </Button>
       {showConfirm && (
         <ConfirmModal
-          title="Logout?"
-          message="Are you sure you want to logout? You will need to sign in again to access the admin dashboard."
-          confirmLabel="Logout"
+          title={t("logoutConfirmTitle")}
+          message={t("logoutConfirmMsg")}
+          confirmLabel={t("logout")}
           confirmIcon={LogOut}
           busy={busy}
           onConfirm={logout}

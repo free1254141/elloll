@@ -1,0 +1,12 @@
+﻿[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.elloll.store",
+      "sha256_cert_fingerprints": [
+        "D2:7D:86:F1:97:8F:5A:25:A3:4A:D4:C5:0C:C8:8E:B3:F7:3A:C8:78:1E:21:DF:C0:7B:24:48:9D:30:80:80:EC"
+      ]
+    }
+  }
+]

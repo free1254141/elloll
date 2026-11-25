@@ -134,19 +134,19 @@ export type ReceiptData = {
 };
 
 const priceFmt = (n: number) =>
-  `PHP ${new Intl.NumberFormat("en-PH", {
+  `EGP ${new Intl.NumberFormat("en-EG", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)}`;
 
 const dateFmt = (iso?: string) => {
   if (!iso)
-    return new Date().toLocaleDateString("en-PH", {
+    return new Date().toLocaleDateString("en-EG", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
-  return new Date(iso).toLocaleDateString("en-PH", {
+  return new Date(iso).toLocaleDateString("en-EG", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -159,7 +159,7 @@ export function ReceiptDocument({ data }: { data: ReceiptData }) {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.storeName}>Cube Store</Text>
+          <Text style={styles.storeName}>elloll</Text>
           <Text style={styles.tagline}>
             Curious objects for mind and desk
           </Text>
@@ -223,8 +223,7 @@ export function ReceiptDocument({ data }: { data: ReceiptData }) {
 
         {/* Footer */}
         <Text style={styles.footer}>
-          Thank you for your purchase! If you have any questions, contact us at
-          support@cubestore.com
+          Thank you for your purchase!
         </Text>
       </Page>
     </Document>

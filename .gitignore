@@ -15,7 +15,11 @@
 
 # next.js
 /.next/
+/.next-admin/
 /out/
+
+# scratch notes
+/.scratch/
 
 # production
 /build

@@ -1,87 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import {
+  Bot,
   ChevronLeft,
   ChevronRight,
+  Download,
   FolderTree,
+  Headset,
   LayoutDashboard,
   LogOut,
   Menu,
   Package,
   ShoppingCart,
+  Smartphone,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { CubeFace } from "@/components/cube-face";
+import { BrandLogo } from "@/components/brand-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { LogoutButton } from "@/features/auth/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { useRouter } from "next/navigation";
+import { useLanguage, type TranslationKey } from "@/lib/i18n";
 
 const navItems: {
   href: string;
-  label: string;
+  labelKey: TranslationKey;
   icon: LucideIcon;
-  ready: boolean;
 }[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, ready: true },
-  {
-    href: "/admin/categories",
-    label: "Categories",
-    icon: FolderTree,
-    ready: true,
-  },
-  { href: "/admin/products", label: "Products", icon: Package, ready: true },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingCart, ready: true },
-  { href: "/admin/customers", label: "Customers", icon: Users, ready: true },
+  { href: "/admin", labelKey: "adminDashboard", icon: LayoutDashboard },
+  { href: "/admin/categories", labelKey: "adminCategories", icon: FolderTree },
+  { href: "/admin/products", labelKey: "adminProducts", icon: Package },
+  { href: "/admin/orders", labelKey: "adminOrders", icon: ShoppingCart },
+  { href: "/admin/customers", labelKey: "adminCustomers", icon: Users },
+  { href: "/admin/support", labelKey: "adminSupport", icon: Headset },
+  { href: "/admin/ai-bot", labelKey: "adminAiBot", icon: Bot },
 ];
 
 function NavLink({
   href,
   label,
   icon: Icon,
-  ready,
   collapsed,
+  badgeCount,
   onNavigate,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
-  ready: boolean;
   collapsed: boolean;
+  badgeCount?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const active = pathname === href;
+  const active =
+    href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
   const base = collapsed
-    ? "flex w-full items-center justify-center rounded-lg p-2 text-sm font-medium transition-colors"
+    ? "relative flex w-full items-center justify-center rounded-lg p-2 text-sm font-medium transition-colors"
     : "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors";
-
-  if (!ready) {
-    return (
-      <button
-        type="button"
-        disabled
-        title={`${label} management — planned in a later issue`}
-        className={`${base} cursor-not-allowed text-muted-foreground opacity-60`}
-      >
-        <Icon className="h-4 w-4" />
-        {!collapsed && (
-          <>
-            {label}
-            <span className="ml-auto rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium">
-              Soon
-            </span>
-          </>
-        )}
-      </button>
-    );
-  }
 
   return (
     <Link
@@ -94,14 +75,24 @@ function NavLink({
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
-      <Icon className="h-4 w-4" />
-      {!collapsed && label}
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+      {badgeCount && badgeCount > 0 ? (
+        collapsed ? (
+          <span className="absolute end-1 top-1 h-2 w-2 rounded-full bg-amber-500" />
+        ) : (
+          <span className="ms-auto rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-black">
+            {badgeCount}
+          </span>
+        )
+      ) : null}
     </Link>
   );
 }
 
 function SidebarLogout({ collapsed }: { collapsed: boolean }) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -122,16 +113,16 @@ function SidebarLogout({ collapsed }: { collapsed: boolean }) {
         <button
           type="button"
           onClick={() => setShowConfirm(true)}
-          title="Logout"
+          title={t("logout")}
           className="flex w-full items-center justify-center rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LogOut className="h-4 w-4" />
         </button>
         {showConfirm && (
           <ConfirmModal
-            title="Logout?"
-            message="Are you sure you want to logout? You will need to sign in again to access the admin dashboard."
-            confirmLabel="Logout"
+            title={t("logoutConfirmTitle")}
+            message={t("logoutConfirmMsg")}
+            confirmLabel={t("logout")}
             confirmIcon={LogOut}
             busy={busy}
             onConfirm={logout}
@@ -149,14 +140,43 @@ export function AdminNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mouseY, setMouseY] = useState<number | null>(null);
+  const [unreadSupport, setUnreadSupport] = useState(0);
+  const { t, locale, dir } = useLanguage();
+  const isAr = locale === "ar";
 
-  // Persist sidebar state in localStorage.
+  const fetchUnreadSupport = useCallback(async () => {
+    const supabase = createClient();
+    const { count } = await supabase
+      .from("support_tickets")
+      .select("id", { count: "exact", head: true })
+      .eq("unread_by_admin", true);
+    setUnreadSupport(count ?? 0);
+  }, []);
+
   useEffect(() => {
     const stored = localStorage.getItem("admin-sidebar-collapsed");
     if (stored === "true") setCollapsed(true);
   }, []);
 
-  // Lock background scroll + Escape key when mobile drawer is open.
+  useEffect(() => {
+    void fetchUnreadSupport();
+    const supabase = createClient();
+    const channel = supabase
+      .channel("admin-nav-support-badge")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "support_tickets" },
+        () => {
+          void fetchUnreadSupport();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchUnreadSupport]);
+
   useEffect(() => {
     if (!mobileOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -187,26 +207,29 @@ export function AdminNav() {
     setMouseY(null);
   }
 
+  const ExpandIcon = dir === "rtl" ? ChevronLeft : ChevronRight;
+  const CollapseIcon = dir === "rtl" ? ChevronRight : ChevronLeft;
+
   return (
     <>
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-40 flex h-16 items-center gap-2 border-b border-border bg-background px-4 md:hidden">
+      <header
+        dir="ltr"
+        className="sticky top-0 z-40 flex h-16 items-center gap-2 border-b border-border bg-background px-4 md:hidden"
+      >
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          aria-label="Open navigation"
+          aria-label={t("openMenu")}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link
-          href="/admin"
-          className="flex items-center gap-2 font-semibold tracking-tight"
-        >
-          <CubeFace size="sm" />
-          Cube Store Admin
+        <Link href="/admin" aria-label="elloll Admin" className="flex items-center">
+          <BrandLogo size="sm" adminBadge priority />
         </Link>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          <LanguageSwitcher />
           <ThemeSwitcher />
         </div>
       </header>
@@ -216,20 +239,17 @@ export function AdminNav() {
         <div className="fixed inset-0 z-50 md:hidden">
           <button
             type="button"
-            aria-label="Close menu"
-            className="absolute inset-0 h-full w-full bg-black/50 backdrop-blur-sm"
+            aria-label={t("closeMenu")}
+            className="absolute inset-0 h-full w-full bg-black/60 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 flex w-72 flex-col bg-background shadow-2xl">
-            <div className="flex h-16 items-center justify-between border-b border-border px-4">
-              <span className="flex items-center gap-2 font-semibold tracking-tight">
-                <CubeFace size="sm" />
-                Cube Store Admin
-              </span>
+          <div className="absolute inset-y-0 start-0 flex w-72 flex-col border-e border-border bg-background shadow-2xl">
+            <div dir="ltr" className="flex h-16 items-center justify-between border-b border-border px-4">
+              <BrandLogo size="sm" adminBadge />
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                aria-label="Close menu"
+                aria-label={t("closeMenu")}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <X className="h-5 w-5" />
@@ -239,11 +259,27 @@ export function AdminNav() {
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}
-                  {...item}
+                  href={item.href}
+                  label={t(item.labelKey)}
+                  icon={item.icon}
                   collapsed={false}
+                  badgeCount={
+                    item.href === "/admin/support" ? unreadSupport : undefined
+                  }
                   onNavigate={() => setMobileOpen(false)}
                 />
               ))}
+              <a
+                href="/elloll.apk"
+                download="elloll.apk"
+                className="mt-2 flex w-full items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20"
+              >
+                <Smartphone className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {isAr ? "تحميل تطبيق الأندرويد APK" : "Download Android APK"}
+                </span>
+                <Download className="ms-auto h-3.5 w-3.5 shrink-0" />
+              </a>
             </nav>
             <div className="border-t border-border p-3">
               <LogoutButton />
@@ -256,28 +292,63 @@ export function AdminNav() {
       <aside
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        className={`group/sidebar fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border bg-background transition-[width] duration-200 md:flex ${
+        className={`group/sidebar fixed inset-y-0 start-0 z-40 hidden flex-col border-e border-border bg-background transition-[width] duration-200 md:flex ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
         <div
           className={`flex h-16 items-center border-b border-border ${
-            collapsed ? "justify-center px-2" : "gap-2 px-5"
+            collapsed ? "justify-center px-2" : "px-4"
           }`}
         >
-          <CubeFace size="sm" />
-          {!collapsed && (
-            <span className="font-semibold tracking-tight">Cube Store Admin</span>
+          {collapsed ? (
+            <BrandLogo variant="icon" size="sm" priority />
+          ) : (
+            <BrandLogo size="sm" adminBadge priority />
           )}
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map((item) => (
-            <NavLink key={item.href} {...item} collapsed={collapsed} />
+            <NavLink
+              key={item.href}
+              href={item.href}
+              label={t(item.labelKey)}
+              icon={item.icon}
+              collapsed={collapsed}
+              badgeCount={
+                item.href === "/admin/support" ? unreadSupport : undefined
+              }
+            />
           ))}
+          <a
+            href="/elloll.apk"
+            download="elloll.apk"
+            title={isAr ? "تحميل تطبيق الأندرويد APK" : "Download Android APK"}
+            className={
+              collapsed
+                ? "mt-2 flex w-full items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-amber-500 transition-colors hover:bg-amber-500/20"
+                : "mt-2 flex w-full items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20"
+            }
+          >
+            <Smartphone className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="truncate">
+                  {isAr ? "تطبيق الأندرويد (APK)" : "Android App (APK)"}
+                </span>
+                <Download className="ms-auto h-3.5 w-3.5 shrink-0" />
+              </>
+            )}
+          </a>
         </nav>
         <div className="border-t border-border p-3">
-          <div className="mb-2">
+          <div
+            className={`mb-2 flex items-center ${
+              collapsed ? "flex-col gap-1" : "justify-between"
+            }`}
+          >
             <ThemeSwitcher />
+            <LanguageSwitcher />
           </div>
           <SidebarLogout collapsed={collapsed} />
         </div>
@@ -286,8 +357,16 @@ export function AdminNav() {
         <button
           type="button"
           onClick={toggleCollapsed}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="absolute -right-3 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-opacity hover:bg-muted hover:text-foreground"
+          aria-label={
+            collapsed
+              ? isAr
+                ? "توسيع القائمة الجانبية"
+                : "Expand sidebar"
+              : isAr
+                ? "طي القائمة الجانبية"
+                : "Collapse sidebar"
+          }
+          className="absolute -end-3 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-opacity hover:bg-muted hover:text-foreground"
           style={{
             top: mouseY !== null ? `${mouseY}px` : "80px",
             transform: "translateY(-50%)",
@@ -295,9 +374,9 @@ export function AdminNav() {
           }}
         >
           {collapsed ? (
-            <ChevronRight className="h-3 w-3" />
+            <ExpandIcon className="h-3 w-3" />
           ) : (
-            <ChevronLeft className="h-3 w-3" />
+            <CollapseIcon className="h-3 w-3" />
           )}
         </button>
       </aside>

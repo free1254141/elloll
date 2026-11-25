@@ -10,6 +10,11 @@ import {
 } from "@/features/catalog/lib/catalog";
 import { ProductCard } from "@/features/catalog/components/product-card";
 import { CatalogToolbar } from "@/features/catalog/components/catalog-toolbar";
+import {
+  CatalogEmptyState,
+  CatalogHeader,
+} from "@/features/catalog/components/catalog-labels";
+import type { PriceRangeKey } from "@/features/catalog/lib/catalog";
 
 const PAGE_SIZE = 12;
 
@@ -33,34 +38,29 @@ export async function CatalogGrid({
 
   const params = await searchParams;
   const supabase = await createClient();
-  // URL state maps 1:1 to the query: sort falls back to "newest", page to 1.
   const requestedPage = toPage(params.page);
   const sort = isValidSort(params.sort) ? params.sort : "newest";
+  const inStockOnly = params.stock === "1";
+  const priceRange: PriceRangeKey =
+    params.price === "under-500" ||
+    params.price === "500-1500" ||
+    params.price === "over-1500"
+      ? params.price
+      : "all";
   const categorySlugSpecified = Boolean(params.category);
 
-  // Categories are needed both for the filter dropdown and to resolve the
-  // `category` slug (from the URL) into the id the products table uses, so
-  // they are fetched first and the search then scopes by category in one query.
   const categories = await getFeaturedCategories(supabase);
   const activeCategory =
     categories.find((c) => c.slug === params.category) ?? null;
 
-  // An unknown category slug in the URL is a real filter, just one that
-  // matches nothing — render the empty state rather than silently dropping it.
   if (categorySlugSpecified && !activeCategory) {
     return (
       <CatalogFrame
         categories={categories}
-        totalLabel="Category not found"
+        total={0}
+        categoryNotFound
         toolbar
-        empty={
-          <EmptyResults
-            hasQuery={Boolean(params.q)}
-            hasCategory={false}
-            title="That category doesn't exist."
-            description="The category may have been renamed or removed. Try browsing all products instead."
-          />
-        }
+        empty={<CatalogEmptyState hasFilters />}
       />
     );
   }
@@ -69,12 +69,12 @@ export async function CatalogGrid({
     q: params.q,
     categoryId: activeCategory?.id,
     sort,
+    inStockOnly,
+    priceRange,
     page: requestedPage,
     pageSize: PAGE_SIZE,
   });
 
-  // A page number beyond the last page is a stale link/refresh — re-fetch at
-  // the last page instead of showing a dead empty grid.
   const page = Math.min(requestedPage, result.totalPages);
   const clamped = page !== requestedPage;
   const effectiveResult = clamped
@@ -82,29 +82,26 @@ export async function CatalogGrid({
         q: params.q,
         categoryId: activeCategory?.id,
         sort,
+        inStockOnly,
+        priceRange,
         page,
         pageSize: PAGE_SIZE,
       })
     : result;
   const { products, total, totalPages } = effectiveResult;
+  const hasFilters = Boolean(
+    params.q || activeCategory || inStockOnly || priceRange !== "all",
+  );
 
   return (
     <CatalogFrame
       categories={categories}
-      totalLabel={
-        total === 0
-          ? "No products found"
-          : `${total} product${total === 1 ? "" : "s"}${
-              activeCategory ? ` in ${activeCategory.name}` : ""
-            }`
-      }
+      total={total}
+      categoryName={activeCategory?.name}
       toolbar
       empty={
         products.length === 0 ? (
-          <EmptyResults
-            hasQuery={Boolean(params.q)}
-            hasCategory={Boolean(activeCategory)}
-          />
+          <CatalogEmptyState hasFilters={hasFilters} />
         ) : undefined
       }
     >
@@ -130,23 +127,28 @@ export async function CatalogGrid({
 
 function CatalogFrame({
   categories,
-  totalLabel,
+  total,
+  categoryName,
+  categoryNotFound,
   toolbar = false,
   empty,
   children,
 }: {
   categories: Awaited<ReturnType<typeof getFeaturedCategories>>;
-  totalLabel: string;
+  total: number;
+  categoryName?: string;
+  categoryNotFound?: boolean;
   toolbar?: boolean;
   empty?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-10">
-      <div className="mb-6">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Products</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{totalLabel}</p>
-      </div>
+      <CatalogHeader
+        total={total}
+        categoryName={categoryName}
+        categoryNotFound={categoryNotFound}
+      />
 
       {toolbar && <CatalogToolbar categories={categories} />}
 
@@ -173,6 +175,8 @@ function CatalogPagination({
     if (searchParams.q) urlParams.set("q", searchParams.q);
     if (searchParams.category) urlParams.set("category", searchParams.category);
     if (isValidSort(searchParams.sort)) urlParams.set("sort", searchParams.sort);
+    if (searchParams.price) urlParams.set("price", searchParams.price);
+    if (searchParams.stock === "1") urlParams.set("stock", "1");
     if (target > 1) urlParams.set("page", String(target));
     const qs = urlParams.toString();
     return qs ? `/products?${qs}` : "/products";

@@ -19,6 +19,7 @@ import { ConfirmDeleteModal } from "@/features/admin/components/confirm-delete-m
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 type ToastState = { message: string; tone: "success" | "error" };
 
@@ -27,6 +28,8 @@ export function CategoriesManager({
 }: {
   initialCategories: CategoryWithCount[];
 }) {
+  const { locale } = useLanguage();
+  const isAr = locale === "ar";
   const [categories, setCategories] = useState(initialCategories);
   const [searchDraft, setSearchDraft] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -37,7 +40,6 @@ export function CategoriesManager({
   const [toast, setToast] = useState<ToastState | null>(null);
   const inFlightRef = useRef(false);
 
-  // Live updates (ADR-0011)
   useEffect(() => {
     setCategories(initialCategories);
   }, [initialCategories]);
@@ -54,7 +56,12 @@ export function CategoriesManager({
     try {
       const result = await createCategoryAction(name);
       if (result.ok) {
-        setToast({ message: `"${result.category.name}" created`, tone: "success" });
+        setToast({
+          message: isAr
+            ? `تم إنشاء قسم "${result.category.name}"`
+            : `"${result.category.name}" created`,
+          tone: "success",
+        });
         await refresh();
       } else {
         setToast({ message: result.message, tone: "error" });
@@ -73,7 +80,10 @@ export function CategoriesManager({
     try {
       const result = await renameCategoryAction(id, name);
       if (result.ok) {
-        setToast({ message: `"${name}" renamed`, tone: "success" });
+        setToast({
+          message: isAr ? `تم تعديل الاسم إلى "${name}"` : `"${name}" renamed`,
+          tone: "success",
+        });
         await refresh();
       } else {
         setToast({ message: result.message, tone: "error" });
@@ -92,7 +102,12 @@ export function CategoriesManager({
     try {
       const result = await deleteCategoryAction(id);
       if (result.ok) {
-        setToast({ message: `"${deleting?.name}" deleted`, tone: "success" });
+        setToast({
+          message: isAr
+            ? `تم حذف قسم "${deleting?.name}"`
+            : `"${deleting?.name}" deleted`,
+          tone: "success",
+        });
         await refresh();
       } else {
         setToast({ message: result.message, tone: "error" });
@@ -123,22 +138,35 @@ export function CategoriesManager({
 
   return (
     <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isAr ? "الأقسام" : "Categories"}
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          {isAr
+            ? "تنظيم أقسام المتجر والملابس — تظهر التغييرات في المتجر فوراً."
+            : "Organise the catalog. Changes appear in the storefront immediately."}
+        </p>
+      </div>
+
       {/* Toolbar: search + create button */}
       <div className="flex items-center gap-3">
         <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            placeholder="Search categories…"
-            aria-label="Search categories"
-            className="pl-8"
+            placeholder={isAr ? "ابحث في الأقسام…" : "Search categories…"}
+            aria-label={isAr ? "البحث في الأقسام" : "Search categories"}
+            className="ps-8"
           />
         </div>
         <Button onClick={() => setShowCreateModal(true)} className="shrink-0">
           <FolderPlus className="h-4 w-4" />
-          <span className="hidden sm:inline">New category</span>
+          <span className="hidden sm:inline">
+            {isAr ? "قسم جديد" : "New category"}
+          </span>
         </Button>
       </div>
 
@@ -146,8 +174,12 @@ export function CategoriesManager({
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           {categories.length === 0
-            ? "No categories yet — create the first one above."
-            : "No categories match this search."}
+            ? isAr
+              ? "لا توجد أقسام بعد — أنشئ أول قسم من الأعلى."
+              : "No categories yet — create the first one above."
+            : isAr
+              ? "لا توجد أقسام مطابقة لعملية البحث."
+              : "No categories match this search."}
         </div>
       ) : (
         <ul className="min-h-[400px] max-h-[600px] divide-y divide-border overflow-y-auto rounded-xl border border-border bg-background">
@@ -156,26 +188,30 @@ export function CategoriesManager({
               key={category.id}
               className="flex items-center justify-between p-4"
             >
-              {/* Category info */}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="truncate font-medium">{category.name}</p>
                   <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    {category.productCount} product
-                    {category.productCount === 1 ? "" : "s"}
+                    {isAr
+                      ? `${category.productCount} منتج`
+                      : `${category.productCount} product${category.productCount === 1 ? "" : "s"}`}
                   </span>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                <p
+                  dir="ltr"
+                  className="mt-0.5 truncate text-start text-xs text-muted-foreground"
+                >
                   /{category.slug}
                 </p>
               </div>
 
-              {/* Row actions */}
               <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setEditing(category)}
-                  aria-label={`Edit ${category.name}`}
+                  aria-label={
+                    isAr ? `تعديل ${category.name}` : `Edit ${category.name}`
+                  }
                   className={iconButton}
                 >
                   <Pencil className="h-4 w-4" />
@@ -183,7 +219,9 @@ export function CategoriesManager({
                 <button
                   type="button"
                   onClick={() => handleDeleteClick(category)}
-                  aria-label={`Delete ${category.name}`}
+                  aria-label={
+                    isAr ? `حذف ${category.name}` : `Delete ${category.name}`
+                  }
                   className={cn(
                     iconButton,
                     "hover:bg-destructive/10 hover:text-destructive",
@@ -197,7 +235,6 @@ export function CategoriesManager({
         </ul>
       )}
 
-      {/* Create modal */}
       {showCreateModal && (
         <CategoryFormModal
           mode="create"
@@ -206,7 +243,6 @@ export function CategoriesManager({
         />
       )}
 
-      {/* Edit modal */}
       {editing && (
         <CategoryFormModal
           mode="edit"
@@ -217,24 +253,34 @@ export function CategoriesManager({
         />
       )}
 
-      {/* Delete confirmation modal */}
       {deleting && (
         <ConfirmDeleteModal
-          title="Delete category?"
-          message={`Are you sure you want to delete "${deleting.name}"? This action cannot be undone.`}
+          title={isAr ? "حذف القسم؟" : "Delete category?"}
+          message={
+            isAr
+              ? `هل أنت متأكد من حذف قسم "${deleting.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+              : `Are you sure you want to delete "${deleting.name}"? This action cannot be undone.`
+          }
           busy={busy === deleting.id}
           onConfirm={() => void handleDelete(deleting.id)}
           onCancel={() => setDeleting(null)}
         />
       )}
 
-      {/* Cannot delete modal (category has products) */}
       {cannotDelete && (
         <ConfirmModal
-          title="Cannot delete category"
-          message={`"${cannotDelete.name}" cannot be deleted because it has ${cannotDelete.productCount} product${cannotDelete.productCount === 1 ? "" : "s"} linked.`}
-          warning="Remove or reassign the products first, then try again."
-          confirmLabel="Close"
+          title={isAr ? "لا يمكن حذف القسم" : "Cannot delete category"}
+          message={
+            isAr
+              ? `لا يمكن حذف قسم "${cannotDelete.name}" لأنه مرتبط بـ ${cannotDelete.productCount} منتج.`
+              : `"${cannotDelete.name}" cannot be deleted because it has ${cannotDelete.productCount} product${cannotDelete.productCount === 1 ? "" : "s"} linked.`
+          }
+          warning={
+            isAr
+              ? "انقل المنتجات إلى قسم آخر أو احذفها أولاً ثم أعد المحاولة."
+              : "Remove or reassign the products first, then try again."
+          }
+          confirmLabel={isAr ? "إغلاق" : "Close"}
           hideCancel={true}
           busy={false}
           onConfirm={() => setCannotDelete(null)}
@@ -242,7 +288,6 @@ export function CategoriesManager({
         />
       )}
 
-      {/* Toast */}
       {toast && (
         <Toast
           message={toast.message}

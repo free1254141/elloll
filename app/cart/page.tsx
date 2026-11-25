@@ -4,8 +4,8 @@ import { StorefrontHeader } from "@/components/storefront-header";
 import { CartView } from "@/features/cart/components/cart-view";
 
 export const metadata: Metadata = {
-  title: "Cart — Cube Store",
-  description: "Review your Cube Store cart before checkout.",
+  title: "Cart — elloll",
+  description: "Review your elloll cart before checkout.",
 };
 
 export default function CartPage() {

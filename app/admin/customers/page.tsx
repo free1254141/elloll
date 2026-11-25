@@ -8,8 +8,8 @@ import {
 import { CustomersManager } from "@/features/admin/components/customers-manager";
 
 export const metadata: Metadata = {
-  title: "Customers — Cube Store Admin",
-  description: "Customer list with live order counts and total spend.",
+  title: "العملاء — إدارة elloll",
+  description: "قائمة العملاء وإجمالي الطلبات والإنفاق الفعلي.",
 };
 
 export default async function AdminCustomersPage({
@@ -25,17 +25,5 @@ export default async function AdminCustomersPage({
   const supabase = await createClient();
   const customers = await listCustomers(supabase, { sort: activeSort });
 
-  return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
-        <p className="mt-1 text-muted-foreground">
-          Order counts and total spend are computed live — cancelled orders are
-          excluded from both.
-        </p>
-      </div>
-
-      <CustomersManager initialCustomers={customers} initialSort={activeSort} />
-    </div>
-  );
+  return <CustomersManager initialCustomers={customers} initialSort={activeSort} />;
 }

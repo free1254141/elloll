@@ -39,6 +39,11 @@ function parseProductForm(
   const status = String(formData.get("status") ?? "active");
   const categoryRaw = String(formData.get("category_id") ?? "");
   const category_id = categoryRaw ? categoryRaw : null;
+  const seo_title = String(formData.get("seo_title") ?? "").trim() || null;
+  const seo_description =
+    String(formData.get("seo_description") ?? "").trim() || null;
+  const seo_keywords =
+    String(formData.get("seo_keywords") ?? "").trim() || null;
 
   if (!name) return { error: "Product name is required." };
   // Reject blank fields explicitly — Number("") is 0, which would silently
@@ -66,6 +71,9 @@ function parseProductForm(
       status,
       category_id,
       image_url: "",
+      seo_title,
+      seo_description,
+      seo_keywords,
     },
   };
 }

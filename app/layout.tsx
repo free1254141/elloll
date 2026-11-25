@@ -1,22 +1,77 @@
-import type { Metadata } from "next";
-import { Geist, Space_Grotesk } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Cairo, Geist, Space_Grotesk } from "next/font/google";
 import { RouteAwareThemeProvider } from "@/components/route-aware-theme-provider";
+import { LanguageProvider } from "@/lib/i18n";
+import { StorefrontAiShell } from "@/features/ai/components/storefront-ai-shell";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { getSiteUrl } from "@/lib/seo";
 import "./globals.css";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const defaultUrl = getSiteUrl();
+
+export const viewport: Viewport = {
+  themeColor: "#09090b",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Cube Store",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "elloll",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  title: {
+    default: "elloll — أزياء وملابس عصرية في مصر",
+    template: "%s",
+  },
   description:
-    "Curious objects for mind and desk — speed cubes, brain teasers, desk toys, and collectibles.",
+    "متجر elloll للملابس والأزياء العصرية في مصر — خامات مختارة بعناية، توصيل سريع لجميع المحافظات، ودعم عملاء مباشر.",
+  keywords: [
+    "elloll",
+    "متجر ملابس مصر",
+    "أزياء أونلاين مصر",
+    "ملابس كاجوال",
+    "تسوق ملابس في مصر",
+    "شحن لجميع المحافظات",
+  ],
+  alternates: {
+    canonical: defaultUrl,
+  },
+  openGraph: {
+    title: "elloll — أزياء وملابس عصرية في مصر",
+    description:
+      "وجهتك الأولى لأحدث الملابس والأزياء العصرية في مصر — خامات مختارة بعناية وشحن سريع لجميع المحافظات.",
+    url: defaultUrl,
+    siteName: "elloll",
+    locale: "ar_EG",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "elloll — أزياء وملابس عصرية في مصر",
+    description:
+      "متجر elloll للملابس والأزياء العصرية في مصر — توصيل سريع لجميع المحافظات.",
+  },
 };
 
-// Geist carries the UI (body copy, controls); Space Grotesk — geometric and
-// engineered, at home next to twisty puzzles — carries display headings via
-// the `font-display` utility (see tailwind.config.ts).
+const cairo = Cairo({
+  variable: "--font-cairo",
+  display: "swap",
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   display: "swap",
@@ -35,14 +90,33 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const storeJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ClothingStore",
+    name: "elloll",
+    url: defaultUrl,
+    description:
+      "متجر elloll للملابس والأزياء العصرية في مصر — شحن لجميع المحافظات.",
+    priceRange: "EGP",
+    areaServed: "EG",
+  };
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${spaceGrotesk.variable} font-sans antialiased`}
+        className={`${cairo.variable} ${geistSans.variable} ${spaceGrotesk.variable} font-sans antialiased`}
       >
-        <RouteAwareThemeProvider>
-          {children}
-        </RouteAwareThemeProvider>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd) }}
+        />
+        <LanguageProvider>
+          <RouteAwareThemeProvider>
+            {children}
+            <StorefrontAiShell />
+            <PwaInstallPrompt />
+          </RouteAwareThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

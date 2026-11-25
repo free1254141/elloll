@@ -4,8 +4,8 @@ import { StorefrontHeader } from "@/components/storefront-header";
 import { CheckoutView } from "@/features/checkout/components/checkout-view";
 
 export const metadata: Metadata = {
-  title: "Checkout — Cube Store",
-  description: "Place your Cube Store order as a guest — no account needed.",
+  title: "Checkout — elloll",
+  description: "Place your elloll order as a guest — no account needed.",
 };
 
 export default function CheckoutPage() {

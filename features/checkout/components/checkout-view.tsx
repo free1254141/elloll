@@ -25,15 +25,15 @@ import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const priceFormatter = new Intl.NumberFormat("en-PH", {
+const priceFormatter = new Intl.NumberFormat("en-EG", {
   style: "currency",
-  currency: "PHP",
+  currency: "EGP",
 });
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; hint: string }[] = [
-  { value: "cod", label: "Cash on delivery", hint: "Pay when your order arrives." },
-  { value: "ewallet", label: "E-wallet", hint: "GCash, GrabPay, Maya and more." },
-  { value: "bank_transfer", label: "Bank transfer", hint: "Manual transfer — details by email." },
+  { value: "cod", label: "الدفع عند الاستلام", hint: "ادفع كاش عند استلام طلبك." },
+  { value: "ewallet", label: "محفظة إلكترونية / إنستاباي", hint: "فودافون كاش، أورانج كاش، إتصالات كاش، أو InstaPay." },
+  { value: "bank_transfer", label: "تحويل بنكي", hint: "تحويل بنكي مباشر — تصلك التفاصيل عبر البريد الإلكتروني." },
 ];
 
 type FormFields = {

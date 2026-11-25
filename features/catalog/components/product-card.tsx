@@ -5,10 +5,11 @@ import { Check, Eye, ShoppingCart, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import type { Category, Product } from "@/features/catalog/lib/catalog";
 import { useCartStore } from "@/features/cart/lib/cart";
+import { useLanguage } from "@/lib/i18n";
 
-const priceFormatter = new Intl.NumberFormat("en-PH", {
+const priceFormatter = new Intl.NumberFormat("en-EG", {
   style: "currency",
-  currency: "PHP",
+  currency: "EGP",
 });
 
 export function ProductCard({
@@ -19,6 +20,7 @@ export function ProductCard({
   categories?: Category[];
 }) {
   const addItem = useCartStore((state) => state.addItem);
+  const { t } = useLanguage();
   const [justAdded, setJustAdded] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outOfStock = product.stock_quantity === 0;
@@ -55,9 +57,9 @@ export function ProductCard({
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {outOfStock && (
-          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">
+          <span className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">
             <XCircle className="h-3 w-3" />
-            Out of stock
+            {t("outOfStock")}
           </span>
         )}
       </div>
@@ -82,7 +84,7 @@ export function ProductCard({
             className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <Eye className="h-3.5 w-3.5" />
-            View Details
+            {t("viewDetails")}
           </button>
           <button
             type="button"
@@ -100,12 +102,12 @@ export function ProductCard({
             {justAdded ? (
               <>
                 <Check className="h-3.5 w-3.5" />
-                Added
+                {t("added")}
               </>
             ) : (
               <>
                 <ShoppingCart className="h-3.5 w-3.5" />
-                Add to Cart
+                {t("addToCart")}
               </>
             )}
           </button>

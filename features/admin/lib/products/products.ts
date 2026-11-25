@@ -21,6 +21,9 @@ export type ProductInput = {
   status: ProductStatus;
   category_id: string | null;
   image_url: string;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  seo_keywords?: string | null;
 };
 
 export type ProductMutationResult =
