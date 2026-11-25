@@ -72,6 +72,7 @@ export async function POST(req: Request) {
     system_prompt?: string;
     deepseek_model?: string;
     deepseek_api_key?: string;
+    daily_chat_limit?: number;
     telegram_bot_token?: string;
     telegram_chat_id?: string;
     notify_support_telegram?: boolean;
@@ -196,6 +197,7 @@ export async function POST(req: Request) {
       welcome_message: body.welcome_message?.trim() || "",
       system_prompt: body.system_prompt?.trim() || "",
       deepseek_model: savedSrv.deepseekModel,
+      daily_chat_limit: Math.max(1, Number(body.daily_chat_limit ?? 20)),
       telegram_chat_id: savedSrv.telegramChatId,
       notify_support_telegram: savedSrv.notifySupportTelegram,
       updated_at: new Date().toISOString(),

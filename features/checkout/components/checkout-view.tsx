@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { useCustomerAuth } from "@/features/auth/components/customer-auth-provider";
 import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -65,6 +66,16 @@ export function CheckoutView() {
   const unavailableCount = items.filter((item) => item.unavailable).length;
 
   const [fields, setFields] = useState<FormFields>(EMPTY_FORM);
+  const { user: signedInUser } = useCustomerAuth();
+
+  useEffect(() => {
+    if (!signedInUser) return;
+    setFields((prev) => ({
+      ...prev,
+      fullName: prev.fullName || signedInUser.name || "",
+      email: prev.email || signedInUser.email || "",
+    }));
+  }, [signedInUser]);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CheckoutActionResponse | null>(null);

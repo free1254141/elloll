@@ -5,6 +5,7 @@ import { StorefrontNav } from "@/components/storefront-nav";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ModeSwitcher } from "@/components/mode-switcher";
+import { AccountButton } from "@/components/account-button";
 
 export function StorefrontHeader() {
   return (
@@ -24,6 +25,7 @@ export function StorefrontHeader() {
           <ModeSwitcher />
           <LanguageSwitcher />
           <ThemeSwitcher />
+          <AccountButton />
           <CartBadge />
         </div>
       </div>

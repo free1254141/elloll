@@ -12,6 +12,7 @@ const drawerLinks: { href: string; key: TranslationKey }[] = [
   { href: "/", key: "home" },
   { href: "/products", key: "products" },
   { href: "/track", key: "trackOrder" },
+  { href: "/support", key: "support" },
 ];
 
 export function StorefrontDrawer() {

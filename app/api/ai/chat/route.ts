@@ -381,6 +381,29 @@ function parseDsmlToolCalls(content: string): Array<{
   return calls;
 }
 
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const visitorId = searchParams.get("visitorId") || "anonymous";
+    const supabase = await createClient();
+    const { data: quota } = await supabase.rpc("check_ai_chat_quota", {
+      p_visitor_id: visitorId,
+    });
+    return NextResponse.json({
+      quota: quota ?? {
+        daily_limit: 20,
+        used_today: 0,
+        remaining: 20,
+        allowed: true,
+      },
+    });
+  } catch {
+    return NextResponse.json({
+      quota: { daily_limit: 20, used_today: 0, remaining: 20, allowed: true },
+    });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as {
@@ -419,6 +442,35 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "AI Assistant is currently disabled by Admin." },
         { status: 403 },
+      );
+    }
+
+    // Enforce daily AI chat quota (default: 20 messages/day)
+    const { data: preQuotaData } = await supabase.rpc("check_ai_chat_quota", {
+      p_visitor_id: visitorId,
+    });
+    const preQuota = (preQuotaData ?? {
+      daily_limit: 20,
+      used_today: 0,
+      remaining: 20,
+      allowed: true,
+    }) as {
+      daily_limit: number;
+      used_today: number;
+      remaining: number;
+      allowed: boolean;
+    };
+
+    if (!preQuota.allowed) {
+      return NextResponse.json(
+        {
+          rateLimited: true,
+          quota: preQuota,
+          reply: `لقد وصلت إلى الحد اليومي المسموح به (${preQuota.daily_limit} رسالة يومياً). يمكنك متابعة استخدام الشات غداً أو التواصل معنا عبر صفحة دعم العملاء (/support).`,
+          actions: [],
+          products: [],
+        },
+        { status: 429 },
       );
     }
 
@@ -789,7 +841,7 @@ export async function POST(req: Request) {
       finalReply = "تم تنفيذ طلبك بنجاح! هل تحتاج أي مساعدة أخرى؟";
     }
 
-    // Persist conversation & increment daily chat user analytics
+    // Persist conversation & increment daily chat user analytics + quota
     await supabase.rpc("save_ai_chat_turn", {
       p_session_id: sessionId,
       p_visitor_id: visitorId,
@@ -798,11 +850,21 @@ export async function POST(req: Request) {
       p_tool_calls: executedTools.length > 0 ? executedTools : null,
     });
 
+    const { data: postQuota } = await supabase.rpc("check_ai_chat_quota", {
+      p_visitor_id: visitorId,
+    });
+
     return NextResponse.json({
       reply: finalReply,
       actions: clientActions,
       products: previewProducts,
       toolsUsed: [...new Set(executedTools)],
+      quota: postQuota ?? {
+        daily_limit: preQuota.daily_limit,
+        used_today: preQuota.used_today + 1,
+        remaining: Math.max(0, preQuota.daily_limit - (preQuota.used_today + 1)),
+        allowed: preQuota.used_today + 1 < preQuota.daily_limit,
+      },
     });
   } catch (err) {
     return NextResponse.json(

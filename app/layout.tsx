@@ -4,6 +4,8 @@ import { RouteAwareThemeProvider } from "@/components/route-aware-theme-provider
 import { LanguageProvider } from "@/lib/i18n";
 import { StorefrontAiShell } from "@/features/ai/components/storefront-ai-shell";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { CustomerAuthProvider } from "@/features/auth/components/customer-auth-provider";
+import { CustomerAuthModal } from "@/features/auth/components/customer-auth-modal";
 import { getSiteUrl } from "@/lib/seo";
 import "./globals.css";
 
@@ -111,11 +113,14 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd) }}
         />
         <LanguageProvider>
-          <RouteAwareThemeProvider>
-            {children}
-            <StorefrontAiShell />
-            <PwaInstallPrompt />
-          </RouteAwareThemeProvider>
+          <CustomerAuthProvider>
+            <RouteAwareThemeProvider>
+              {children}
+              <CustomerAuthModal />
+              <StorefrontAiShell />
+              <PwaInstallPrompt />
+            </RouteAwareThemeProvider>
+          </CustomerAuthProvider>
         </LanguageProvider>
       </body>
     </html>

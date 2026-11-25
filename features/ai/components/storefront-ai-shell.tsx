@@ -24,6 +24,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { ModeSwitcher, useStorefrontMode } from "@/components/mode-switcher";
 import { CartBadge } from "@/features/cart/components/cart-badge";
+import { AccountButton } from "@/components/account-button";
 import { Button } from "@/components/ui/button";
 import type { Product } from "@/features/catalog/lib/catalog";
 
@@ -32,6 +33,14 @@ interface PublicAiConfig {
   mode: "default" | "chat_only";
   bot_name: string;
   welcome_message: string;
+  daily_chat_limit?: number;
+}
+
+interface ChatQuota {
+  daily_limit: number;
+  used_today: number;
+  remaining: number;
+  allowed: boolean;
 }
 
 interface ChatMsg {
@@ -86,6 +95,12 @@ export function StorefrontAiShell() {
   const [visitorId, setVisitorId] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  const [quota, setQuota] = useState<ChatQuota>({
+    daily_limit: 20,
+    used_today: 0,
+    remaining: 20,
+    allowed: true,
+  });
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -116,6 +131,13 @@ export function StorefrontAiShell() {
       if (data) {
         const cfg = data as PublicAiConfig;
         setConfig(cfg);
+        if (cfg.daily_chat_limit) {
+          setQuota((q) => ({
+            ...q,
+            daily_limit: cfg.daily_chat_limit ?? 20,
+            remaining: Math.max(0, (cfg.daily_chat_limit ?? 20) - q.used_today),
+          }));
+        }
         setMessages((prev) =>
           prev.length === 0 && cfg.welcome_message
             ? [
@@ -129,6 +151,13 @@ export function StorefrontAiShell() {
         );
       }
     });
+
+    fetch(`/api/ai/chat?visitorId=${encodeURIComponent(vid)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { quota?: ChatQuota } | null) => {
+        if (d?.quota) setQuota(d.quota);
+      })
+      .catch(() => {});
   }, [isAdminOrAuth]);
 
   useEffect(() => {
@@ -216,8 +245,14 @@ export function StorefrontAiShell() {
         actions?: ClientAction[];
         products?: Product[];
         toolsUsed?: string[];
+        quota?: ChatQuota;
+        rateLimited?: boolean;
         error?: string;
       };
+
+      if (data.quota) {
+        setQuota(data.quota);
+      }
 
       if (data.actions) {
         for (const act of data.actions) {
@@ -453,6 +488,26 @@ export function StorefrontAiShell() {
         </div>
       )}
 
+      {/* Daily quota indicator bar */}
+      <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-4 py-1.5 text-[11px]">
+        <span className="text-muted-foreground">
+          {locale === "ar" ? "الاستخدام اليومي للشات:" : "Daily AI Chat Limit:"}
+        </span>
+        <span
+          className={`font-semibold tabular-nums ${
+            quota.remaining === 0
+              ? "text-destructive"
+              : quota.remaining <= 5
+                ? "text-amber-500"
+                : "text-emerald-500"
+          }`}
+        >
+          {locale === "ar"
+            ? `${quota.remaining} / ${quota.daily_limit} متبقي اليوم`
+            : `${quota.remaining} / ${quota.daily_limit} left today`}
+        </span>
+      </div>
+
       {/* Auto-resizing Input form (Shift+Enter = newline, Enter = send) */}
       <form
         onSubmit={(e) => {
@@ -468,16 +523,20 @@ export function StorefrontAiShell() {
           onChange={handleInputChange}
           onKeyDown={handleTextareaKeyDown}
           placeholder={
-            locale === "ar"
-              ? "اكتب طلبك هنا (Shift + Enter لسطر جديد)..."
-              : "Ask anything (Shift + Enter for new line)..."
+            quota.remaining === 0
+              ? locale === "ar"
+                ? "تم الوصول للحد اليومي (20 رسالة) — يتجدد غداً"
+                : "Daily limit reached (20 messages) — resets tomorrow"
+              : locale === "ar"
+                ? "اكتب طلبك هنا (Shift + Enter لسطر جديد)..."
+                : "Ask anything (Shift + Enter for new line)..."
           }
-          disabled={busy}
+          disabled={busy || !quota.allowed}
           className="max-h-40 min-h-[38px] flex-1 resize-none overflow-y-auto rounded-xl border border-input bg-background px-3.5 py-2 text-sm leading-relaxed shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
         />
         <Button
           type="submit"
-          disabled={busy || !input.trim()}
+          disabled={busy || !input.trim() || !quota.allowed}
           size="icon"
           className="h-[38px] w-[38px] shrink-0 rounded-xl"
         >
@@ -514,6 +573,7 @@ export function StorefrontAiShell() {
             </Button>
             <LanguageSwitcher />
             <ThemeSwitcher />
+            <AccountButton />
             <CartBadge />
           </div>
         </header>

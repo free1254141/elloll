@@ -29,6 +29,7 @@ interface AiSettingsState {
   welcome_message: string;
   system_prompt: string;
   deepseek_model: string;
+  daily_chat_limit?: number;
   deepseek_api_key: string;
   deepseek_api_key_masked?: string;
   has_deepseek_key?: boolean;
@@ -85,6 +86,7 @@ export function AiBotManager() {
     welcome_message: "",
     system_prompt: "",
     deepseek_model: "deepseek-chat",
+    daily_chat_limit: 20,
     deepseek_api_key: "",
     telegram_bot_token: "",
     telegram_chat_id: "",
@@ -388,6 +390,32 @@ export function AiBotManager() {
                   }
                   className="h-5 w-5 accent-primary cursor-pointer"
                 />
+              </div>
+
+              <div className="space-y-1.5 rounded-xl border border-border bg-background/50 p-4">
+                <Label htmlFor="daily-chat-limit">
+                  {locale === "ar"
+                    ? "الحد اليومي لرسائل الشات لكل مستخدم"
+                    : "Daily AI Chat Limit (messages/day)"}
+                </Label>
+                <Input
+                  id="daily-chat-limit"
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={settings.daily_chat_limit ?? 20}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      daily_chat_limit: Math.max(1, Number(e.target.value) || 20),
+                    }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  {locale === "ar"
+                    ? "الافتراضي 20 رسالة يومياً لكل زائر أو مستخدم لحماية الرصيد."
+                    : "Default: 20 messages per day per user/visitor."}
+                </p>
               </div>
             </div>
 
