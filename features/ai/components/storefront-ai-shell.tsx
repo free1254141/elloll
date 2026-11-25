@@ -18,6 +18,7 @@ import {
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
 import { useCartStore } from "@/features/cart/lib/cart";
+import { useCustomerAuth } from "@/features/auth/components/customer-auth-provider";
 import { useLanguage } from "@/lib/i18n";
 import { BrandLogo } from "@/components/brand-logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -38,9 +39,12 @@ interface PublicAiConfig {
 
 interface ChatQuota {
   daily_limit: number;
+  guest_limit?: number;
   used_today: number;
   remaining: number;
   allowed: boolean;
+  is_authenticated?: boolean;
+  require_auth?: boolean;
 }
 
 interface ChatMsg {
@@ -58,7 +62,8 @@ type ClientAction =
   | { type: "CLEAR_CART" }
   | { type: "SET_THEME"; theme: "light" | "dark" }
   | { type: "SET_LANGUAGE"; locale: "ar" | "en" }
-  | { type: "NAVIGATE"; path: string };
+  | { type: "NAVIGATE"; path: string }
+  | { type: "OPEN_AUTH_MODAL"; mode?: "login" | "signup" };
 
 const priceFmt = new Intl.NumberFormat("en-EG", {
   style: "currency",
@@ -82,6 +87,7 @@ export function StorefrontAiShell() {
   const router = useRouter();
   const { locale, setLocale } = useLanguage();
   const { setTheme } = useTheme();
+  const { user: authUser, openAuthModal } = useCustomerAuth();
   const isAdminOrAuth =
     pathname.startsWith("/admin") || pathname.startsWith("/auth");
 
@@ -97,9 +103,12 @@ export function StorefrontAiShell() {
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const [quota, setQuota] = useState<ChatQuota>({
     daily_limit: 20,
+    guest_limit: 5,
     used_today: 0,
-    remaining: 20,
+    remaining: 5,
     allowed: true,
+    is_authenticated: false,
+    require_auth: false,
   });
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -131,13 +140,6 @@ export function StorefrontAiShell() {
       if (data) {
         const cfg = data as PublicAiConfig;
         setConfig(cfg);
-        if (cfg.daily_chat_limit) {
-          setQuota((q) => ({
-            ...q,
-            daily_limit: cfg.daily_chat_limit ?? 20,
-            remaining: Math.max(0, (cfg.daily_chat_limit ?? 20) - q.used_today),
-          }));
-        }
         setMessages((prev) =>
           prev.length === 0 && cfg.welcome_message
             ? [
@@ -151,14 +153,17 @@ export function StorefrontAiShell() {
         );
       }
     });
+  }, [isAdminOrAuth]);
 
-    fetch(`/api/ai/chat?visitorId=${encodeURIComponent(vid)}`)
+  useEffect(() => {
+    if (isAdminOrAuth || !visitorId) return;
+    fetch(`/api/ai/chat?visitorId=${encodeURIComponent(visitorId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { quota?: ChatQuota } | null) => {
         if (d?.quota) setQuota(d.quota);
       })
       .catch(() => {});
-  }, [isAdminOrAuth]);
+  }, [isAdminOrAuth, visitorId, authUser?.id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -210,6 +215,11 @@ export function StorefrontAiShell() {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
 
+    if (!authUser && (quota.require_auth || !quota.allowed)) {
+      openAuthModal("login");
+      return;
+    }
+
     const userMsg: ChatMsg = {
       id: `u-${Date.now()}`,
       role: "user",
@@ -247,6 +257,7 @@ export function StorefrontAiShell() {
         toolsUsed?: string[];
         quota?: ChatQuota;
         rateLimited?: boolean;
+        requireAuth?: boolean;
         error?: string;
       };
 
@@ -254,6 +265,7 @@ export function StorefrontAiShell() {
         setQuota(data.quota);
       }
 
+      let openedAuthModal = false;
       if (data.actions) {
         for (const act of data.actions) {
           if (act.type === "ADD_TO_CART") {
@@ -270,8 +282,19 @@ export function StorefrontAiShell() {
             setLocale(act.locale);
           } else if (act.type === "NAVIGATE" && !isChatOnly) {
             router.push(act.path);
+          } else if (act.type === "OPEN_AUTH_MODAL") {
+            openedAuthModal = true;
+            openAuthModal(act.mode ?? "login");
           }
         }
+      }
+
+      if (
+        !openedAuthModal &&
+        !authUser &&
+        (data.requireAuth || data.quota?.require_auth)
+      ) {
+        setTimeout(() => openAuthModal("login"), 450);
       }
 
       setMessages((prev) => [
@@ -489,23 +512,45 @@ export function StorefrontAiShell() {
       )}
 
       {/* Daily quota indicator bar */}
-      <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-4 py-1.5 text-[11px]">
+      <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-4 py-1.5 text-[11px]">
         <span className="text-muted-foreground">
-          {locale === "ar" ? "الاستخدام اليومي للشات:" : "Daily AI Chat Limit:"}
+          {authUser
+            ? locale === "ar"
+              ? "الاستخدام اليومي للشات:"
+              : "Daily AI Chat Limit:"
+            : locale === "ar"
+              ? "رسائل مجانية قبل الدخول:"
+              : "Free guest questions:"}
         </span>
-        <span
-          className={`font-semibold tabular-nums ${
-            quota.remaining === 0
-              ? "text-destructive"
-              : quota.remaining <= 5
-                ? "text-amber-500"
-                : "text-emerald-500"
-          }`}
-        >
-          {locale === "ar"
-            ? `${quota.remaining} / ${quota.daily_limit} متبقي اليوم`
-            : `${quota.remaining} / ${quota.daily_limit} left today`}
-        </span>
+        {!authUser && quota.require_auth ? (
+          <button
+            type="button"
+            onClick={() => openAuthModal("login")}
+            className="font-bold text-amber-500 underline underline-offset-2 hover:text-amber-400"
+          >
+            {locale === "ar"
+              ? `سجّل دخولك لمتابعة المحادثة (${quota.daily_limit}/يوم)`
+              : `Sign in to continue (${quota.daily_limit}/day)`}
+          </button>
+        ) : (
+          <span
+            className={`font-semibold tabular-nums ${
+              quota.remaining === 0
+                ? "text-destructive"
+                : quota.remaining <= 2
+                  ? "text-amber-500"
+                  : "text-emerald-500"
+            }`}
+          >
+            {authUser
+              ? locale === "ar"
+                ? `${quota.remaining} / ${quota.daily_limit} متبقي اليوم`
+                : `${quota.remaining} / ${quota.daily_limit} left today`
+              : locale === "ar"
+                ? `${quota.remaining} / ${quota.guest_limit ?? 5} متبقي`
+                : `${quota.remaining} / ${quota.guest_limit ?? 5} left`}
+          </span>
+        )}
       </div>
 
       {/* Auto-resizing Input form (Shift+Enter = newline, Enter = send) */}
@@ -523,20 +568,28 @@ export function StorefrontAiShell() {
           onChange={handleInputChange}
           onKeyDown={handleTextareaKeyDown}
           placeholder={
-            quota.remaining === 0
+            !authUser && quota.require_auth
               ? locale === "ar"
-                ? "تم الوصول للحد اليومي (20 رسالة) — يتجدد غداً"
-                : "Daily limit reached (20 messages) — resets tomorrow"
-              : locale === "ar"
-                ? "اكتب طلبك هنا (Shift + Enter لسطر جديد)..."
-                : "Ask anything (Shift + Enter for new line)..."
+                ? "أكملت 5 أسئلة — سجّل الدخول بـ Google أو الإيميل للمتابعة (20/يوم)"
+                : "5 free questions reached — sign in with Google or email to continue"
+              : quota.remaining === 0
+                ? locale === "ar"
+                  ? `تم الوصول للحد اليومي (${quota.daily_limit} رسالة) — يتجدد غداً`
+                  : `Daily limit reached (${quota.daily_limit} messages) — resets tomorrow`
+                : locale === "ar"
+                  ? "اكتب طلبك هنا (Shift + Enter لسطر جديد)..."
+                  : "Ask anything (Shift + Enter for new line)..."
           }
-          disabled={busy || !quota.allowed}
+          disabled={busy || (Boolean(authUser) && !quota.allowed)}
           className="max-h-40 min-h-[38px] flex-1 resize-none overflow-y-auto rounded-xl border border-input bg-background px-3.5 py-2 text-sm leading-relaxed shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
         />
         <Button
           type="submit"
-          disabled={busy || !input.trim() || !quota.allowed}
+          disabled={
+            busy ||
+            (Boolean(authUser) && (!input.trim() || !quota.allowed)) ||
+            (!authUser && !quota.require_auth && !input.trim())
+          }
           size="icon"
           className="h-[38px] w-[38px] shrink-0 rounded-xl"
         >

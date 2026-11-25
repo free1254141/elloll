@@ -13,11 +13,13 @@ import {
   Send,
   Settings2,
   Sparkles,
+  Trash2,
   Users,
   Wrench,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/lib/i18n";
@@ -97,6 +99,10 @@ export function AiBotManager() {
   const [conversations, setConversations] = useState<AiConversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [convMessages, setConvMessages] = useState<AiMessageRow[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<
+    { type: "single"; conv: AiConversation } | { type: "all" } | null
+  >(null);
+  const [deletingConv, setDeletingConv] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -187,6 +193,60 @@ export function AiBotManager() {
       setErrorMsg(err instanceof Error ? err.message : "Error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleConfirmDeleteConversation() {
+    if (!deleteTarget) return;
+    setDeletingConv(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const url =
+        deleteTarget.type === "all"
+          ? "/admin/api/ai-conversations?all=true"
+          : `/admin/api/ai-conversations?id=${encodeURIComponent(deleteTarget.conv.id)}`;
+
+      const res = await fetch(url, { method: "DELETE" });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        deletedCount?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete conversation");
+      }
+
+      if (deleteTarget.type === "all") {
+        setConversations([]);
+        setSelectedConvId(null);
+        setConvMessages([]);
+        setStatusMsg(
+          locale === "ar"
+            ? `تم مسح جميع المحادثات (${data.deletedCount ?? 0}) نهائياً من قاعدة البيانات Supabase.`
+            : `Permanently deleted all ${data.deletedCount ?? 0} conversations from Supabase.`,
+        );
+      } else {
+        const deletedId = deleteTarget.conv.id;
+        setConversations((prev) => {
+          const remaining = prev.filter((c) => c.id !== deletedId);
+          if (selectedConvId === deletedId) {
+            setSelectedConvId(remaining[0]?.id ?? null);
+            setConvMessages([]);
+          }
+          return remaining;
+        });
+        setStatusMsg(
+          locale === "ar"
+            ? "تم مسح المحادثة وجميع رسائلها نهائياً من قاعدة البيانات Supabase."
+            : "Conversation permanently deleted from Supabase.",
+        );
+      }
+      setDeleteTarget(null);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Error");
+    } finally {
+      setDeletingConv(false);
     }
   }
 
@@ -347,7 +407,7 @@ export function AiBotManager() {
           }`}
         >
           <Wrench className="h-4 w-4" />
-          {locale === "ar" ? "الأدوات المتاحة (20)" : "Available Tools (20)"}
+          {locale === "ar" ? "الأدوات المتاحة (21)" : "Available Tools (21)"}
         </button>
       </div>
 
@@ -743,17 +803,31 @@ export function AiBotManager() {
         <div className="grid min-h-[540px] grid-cols-1 gap-4 lg:grid-cols-12">
           {/* Rooms Sidebar */}
           <div className="flex max-h-[580px] flex-col overflow-hidden rounded-2xl border border-border bg-card lg:col-span-4">
-            <div className="border-b border-border px-4 py-3">
-              <p className="text-sm font-bold">
-                {locale === "ar"
-                  ? `غرف العملاء (${conversations.length})`
-                  : `Customer Rooms (${conversations.length})`}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {locale === "ar"
-                  ? "كل غرفة تمثل جلسة محادثة مستقلة مع عميل"
-                  : "Each room represents an independent customer session"}
-              </p>
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <div>
+                <p className="text-sm font-bold">
+                  {locale === "ar"
+                    ? `غرف العملاء (${conversations.length})`
+                    : `Customer Rooms (${conversations.length})`}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {locale === "ar"
+                    ? "كل غرفة تمثل جلسة محادثة مستقلة مع عميل"
+                    : "Each room represents an independent customer session"}
+                </p>
+              </div>
+              {conversations.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteTarget({ type: "all" })}
+                  className="h-8 gap-1 border-destructive/40 px-2.5 text-[11px] text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {locale === "ar" ? "مسح الكل" : "Delete all"}
+                </Button>
+              )}
             </div>
 
             {conversations.length === 0 ? (
@@ -843,10 +917,26 @@ export function AiBotManager() {
                           Session: {room?.session_id}
                         </p>
                       </div>
-                      <span className="rounded-full border border-border bg-background px-2.5 py-1 text-xs font-semibold">
-                        {convMessages.length}{" "}
-                        {locale === "ar" ? "رسائل" : "messages"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-border bg-background px-2.5 py-1 text-xs font-semibold">
+                          {convMessages.length}{" "}
+                          {locale === "ar" ? "رسائل" : "messages"}
+                        </span>
+                        {room && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() =>
+                              setDeleteTarget({ type: "single", conv: room })
+                            }
+                            className="h-8 gap-1.5 px-3 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {locale === "ar" ? "مسح المحادثة نهائياً" : "Delete permanently"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -918,8 +1008,8 @@ export function AiBotManager() {
             <h2 className="flex items-center gap-2 text-base font-bold">
               <Bot className="h-5 w-5 text-amber-500" />
               {locale === "ar"
-                ? "أدوات شات بوت المتجر (15 أداة)"
-                : "Storefront AI Chat Tools (15)"}
+                ? "أدوات شات بوت المتجر (16 أداة)"
+                : "Storefront AI Chat Tools (16)"}
             </h2>
             <div className="divide-y divide-border">
               {[
@@ -932,7 +1022,8 @@ export function AiBotManager() {
                 ["update_cart_quantity", "تعديل كمية منتج داخل السلة"],
                 ["remove_from_cart", "حذف منتج من السلة"],
                 ["clear_cart", "تفريغ السلة بالكامل"],
-                ["place_order", "إنشاء طلب جديد وتأكيده وخصم المخزون"],
+                ["open_auth_dialog", "إظهار نافذة تسجيل الدخول / إنشاء حساب (Google أو الإيميل)"],
+                ["place_order", "إنشاء طلب جديد وتأكيده (يتطلب تسجيل دخول العميل)"],
                 ["update_customer_order", "تعديل بيانات الطلب (العنوان، الهاتف، الدفع)"],
                 ["cancel_customer_order", "إلغاء/مسح الطلب واسترجاع المخزون تلقائياً"],
                 ["track_order", "تتبع حالة الطلب لحظياً برقم الطلب والإيميل"],
@@ -986,6 +1077,39 @@ export function AiBotManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title={
+            deleteTarget.type === "all"
+              ? locale === "ar"
+                ? "مسح جميع المحادثات نهائياً؟"
+                : "Delete all conversations permanently?"
+              : locale === "ar"
+                ? "مسح هذه المحادثة نهائياً؟"
+                : "Delete this conversation permanently?"
+          }
+          message={
+            deleteTarget.type === "all"
+              ? locale === "ar"
+                ? `سيتم مسح جميع محادثات العملاء (${conversations.length}) وجميع رسائلها نهائياً من قاعدة البيانات Supabase.`
+                : `This will permanently erase all ${conversations.length} conversations and their messages from Supabase.`
+              : locale === "ar"
+                ? `سيتم مسح محادثة العميل (${deleteTarget.conv.visitor_id.slice(-6)}) وجميع رسائلها نهائياً من قاعدة البيانات Supabase ولا يمكن استرجاعها.`
+                : `This will permanently delete conversation (${deleteTarget.conv.visitor_id.slice(-6)}) and all messages from Supabase.`
+          }
+          confirmLabel={
+            locale === "ar" ? "تأكيد المسح النهائي" : "Delete permanently"
+          }
+          confirmVariant="destructive"
+          confirmIcon={Trash2}
+          busy={deletingConv}
+          onConfirm={() => void handleConfirmDeleteConversation()}
+          onCancel={() => {
+            if (!deletingConv) setDeleteTarget(null);
+          }}
+        />
       )}
     </div>
   );

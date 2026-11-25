@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   Download,
   Loader2,
+  LogIn,
   ShieldCheck,
   ShoppingCart,
   X,
@@ -66,7 +67,12 @@ export function CheckoutView() {
   const unavailableCount = items.filter((item) => item.unavailable).length;
 
   const [fields, setFields] = useState<FormFields>(EMPTY_FORM);
-  const { user: signedInUser } = useCustomerAuth();
+  const {
+    user: signedInUser,
+    loading: authLoading,
+    openAuthModal,
+  } = useCustomerAuth();
+  const promptedAuthRef = useRef(false);
 
   useEffect(() => {
     if (!signedInUser) return;
@@ -76,6 +82,19 @@ export function CheckoutView() {
       email: prev.email || signedInUser.email || "",
     }));
   }, [signedInUser]);
+
+  useEffect(() => {
+    if (
+      hasHydrated &&
+      !authLoading &&
+      !signedInUser &&
+      items.length > 0 &&
+      !promptedAuthRef.current
+    ) {
+      promptedAuthRef.current = true;
+      openAuthModal("login");
+    }
+  }, [hasHydrated, authLoading, signedInUser, items.length, openAuthModal]);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CheckoutActionResponse | null>(null);
@@ -104,6 +123,10 @@ export function CheckoutView() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+    if (!signedInUser) {
+      openAuthModal("login");
+      return;
+    }
 
     // Quick client-side pass so the user sees field errors immediately; the
     // server action re-validates everything authoritatively (ADR-0004).
@@ -195,15 +218,37 @@ export function CheckoutView() {
         <EmptyCheckout />
       ) : (
         <div className="mt-8 grid gap-6 sm:gap-8 lg:grid-cols-[1fr_360px]">
-          {/* Left: guest details form */}
+          {/* Left: customer auth gate + delivery details form */}
           <form onSubmit={handleSubmit} noValidate className="min-w-0 space-y-6">
+            {!authLoading && !signedInUser && (
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-foreground">
+                    تسجيل الدخول مطلوب لإتمام الدفع وتأكيد الطلب
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    سجّل دخولك الآن بحساب Google أو البريد الإلكتروني لحفظ بياناتك ومتابعة طلبك.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => openAuthModal("login")}
+                  className="shrink-0 gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  تسجيل الدخول / إنشاء حساب
+                </Button>
+              </div>
+            )}
+
             <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Your details
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                No account needed — we only use these to deliver your order
-                (guest checkout).
+                {signedInUser
+                  ? `Signed in as ${signedInUser.email}`
+                  : "Sign in with Google or email to complete checkout details and payment."}
               </p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
@@ -333,6 +378,10 @@ export function CheckoutView() {
               disabled={submitting || unavailableCount > 0}
               className="w-full sm:w-auto"
               onClick={() => {
+                if (!signedInUser) {
+                  openAuthModal("login");
+                  return;
+                }
                 // Validate fields before opening confirmation modal
                 const errors: Partial<Record<keyof FormFields, string>> = {};
                 if (!fields.fullName.trim()) errors.fullName = "Full name is required.";

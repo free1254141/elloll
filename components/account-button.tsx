@@ -23,25 +23,8 @@ export function AccountButton() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [menuOpen]);
 
-  if (loading) {
-    return (
-      <div className="h-9 w-9 animate-pulse rounded-md border border-border bg-muted/40" />
-    );
-  }
-
-  if (!user) {
-    return (
-      <button
-        type="button"
-        onClick={() => openAuthModal("login")}
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-      >
-        <LogIn className="h-3.5 w-3.5 text-amber-500" />
-        <span className="hidden sm:inline">
-          {isAr ? "دخول" : "Sign in"}
-        </span>
-      </button>
-    );
+  if (loading || !user) {
+    return null;
   }
 
   return (

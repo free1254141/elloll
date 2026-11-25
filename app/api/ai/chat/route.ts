@@ -20,7 +20,8 @@ type ClientAction =
   | { type: "CLEAR_CART" }
   | { type: "SET_THEME"; theme: "light" | "dark" }
   | { type: "SET_LANGUAGE"; locale: "ar" | "en" }
-  | { type: "NAVIGATE"; path: string };
+  | { type: "NAVIGATE"; path: string }
+  | { type: "OPEN_AUTH_MODAL"; mode?: "login" | "signup" };
 
 type ChatMessageInput = {
   role: "user" | "assistant";
@@ -335,6 +336,20 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "open_auth_dialog",
+      description:
+        "Open the customer Sign In / Sign Up dialog (Google OAuth & Email/Password) directly in the browser. Always call this when a guest customer wants to log in or register, OR when a guest tries to confirm an order (place_order).",
+      parameters: {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["login", "signup"] },
+        },
+      },
+    },
+  },
 ];
 
 function parseDsmlToolCalls(content: string): Array<{
@@ -386,20 +401,34 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const visitorId = searchParams.get("visitorId") || "anonymous";
     const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
     const { data: quota } = await supabase.rpc("check_ai_chat_quota", {
       p_visitor_id: visitorId,
     });
     return NextResponse.json({
       quota: quota ?? {
         daily_limit: 20,
+        guest_limit: 5,
         used_today: 0,
-        remaining: 20,
+        remaining: authUser ? 20 : 5,
         allowed: true,
+        is_authenticated: Boolean(authUser),
+        require_auth: false,
       },
     });
   } catch {
     return NextResponse.json({
-      quota: { daily_limit: 20, used_today: 0, remaining: 20, allowed: true },
+      quota: {
+        daily_limit: 20,
+        guest_limit: 5,
+        used_today: 0,
+        remaining: 5,
+        allowed: true,
+        is_authenticated: false,
+        require_auth: false,
+      },
     });
   }
 }
@@ -445,21 +474,46 @@ export async function POST(req: Request) {
       );
     }
 
-    // Enforce daily AI chat quota (default: 20 messages/day)
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    // Enforce guest 5-message gate & signed-in daily AI chat quota (default: 20 messages/day)
     const { data: preQuotaData } = await supabase.rpc("check_ai_chat_quota", {
       p_visitor_id: visitorId,
     });
     const preQuota = (preQuotaData ?? {
       daily_limit: 20,
+      guest_limit: 5,
       used_today: 0,
-      remaining: 20,
+      remaining: authUser ? 20 : 5,
       allowed: true,
+      is_authenticated: Boolean(authUser),
+      require_auth: false,
     }) as {
       daily_limit: number;
+      guest_limit?: number;
       used_today: number;
       remaining: number;
       allowed: boolean;
+      is_authenticated?: boolean;
+      require_auth?: boolean;
     };
+
+    if (!authUser && (preQuota.require_auth || preQuota.used_today >= 5)) {
+      return NextResponse.json(
+        {
+          requireAuth: true,
+          rateLimited: true,
+          quota: preQuota,
+          reply:
+            "أكملت 5 رسائل مجانية كزائر! يرجى تسجيل الدخول بحساب Google أو البريد الإلكتروني لإكمال المحادثة (متاح حتى 20 رسالة يومياً).",
+          actions: [{ type: "OPEN_AUTH_MODAL", mode: "login" }],
+          products: [],
+        },
+        { status: 401 },
+      );
+    }
 
     if (!preQuota.allowed) {
       return NextResponse.json(
@@ -494,7 +548,11 @@ export async function POST(req: Request) {
             .join("\n")}`
         : "\n\n[Current Customer Cart]: Empty";
 
-    const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${cartContext}`;
+    const authContext = authUser
+      ? `\n[Customer Auth Status]: Signed in (${authUser.email ?? authUser.id}). Allowed to place orders.`
+      : `\n[Customer Auth Status]: Guest (NOT signed in). Before confirming/placing an order via place_order, OR if the customer asks to sign in/register, you MUST call open_auth_dialog so the login/signup dialog opens in the browser.`;
+
+    const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${cartContext}${authContext}`;
 
     const deepseekMessages: Array<Record<string, unknown>> = [
       { role: "system", content: systemPrompt },
@@ -659,35 +717,46 @@ export async function POST(req: Request) {
           clientActions.push({ type: "CLEAR_CART" });
           toolResult = { ok: true };
         } else if (fnName === "place_order") {
-          const explicitItems = Array.isArray(args.items)
-            ? (args.items as Array<{ product_id: string; quantity: number }>)
-            : [];
-          const orderItems =
-            explicitItems.length > 0
-              ? explicitItems.map((i) => ({
-                  product_id: String(i.product_id),
-                  quantity: Math.max(1, Number(i.quantity ?? 1)),
-                }))
-              : cartItems.map((c) => ({
-                  product_id: c.id,
-                  quantity: c.quantity,
-                }));
-
-          if (orderItems.length === 0) {
+          if (!authUser) {
+            if (!clientActions.some((a) => a.type === "OPEN_AUTH_MODAL")) {
+              clientActions.push({ type: "OPEN_AUTH_MODAL", mode: "login" });
+            }
             toolResult = {
-              error: "Cart is empty. Add items to the cart before placing an order.",
+              ok: false,
+              require_auth: true,
+              error:
+                "Customer must sign in before confirming an order. The Sign In / Sign Up dialog (Google or Email) is now open in the browser.",
             };
           } else {
-            const orderRes = await placeOrder(
-              supabase,
-              {
-                fullName: String(args.full_name ?? ""),
-                email: String(args.email ?? ""),
-                contactNumber: String(args.contact_number ?? ""),
-                deliveryAddress: String(args.delivery_address ?? ""),
-                paymentMethod: (String(args.payment_method ?? "cod") as PaymentMethod),
-                notes: args.notes ? String(args.notes) : undefined,
-              },
+            const explicitItems = Array.isArray(args.items)
+              ? (args.items as Array<{ product_id: string; quantity: number }>)
+              : [];
+            const orderItems =
+              explicitItems.length > 0
+                ? explicitItems.map((i) => ({
+                    product_id: String(i.product_id),
+                    quantity: Math.max(1, Number(i.quantity ?? 1)),
+                  }))
+                : cartItems.map((c) => ({
+                    product_id: c.id,
+                    quantity: c.quantity,
+                  }));
+
+            if (orderItems.length === 0) {
+              toolResult = {
+                error: "Cart is empty. Add items to the cart before placing an order.",
+              };
+            } else {
+              const orderRes = await placeOrder(
+                supabase,
+                {
+                  fullName: String(args.full_name ?? authUser.user_metadata?.full_name ?? ""),
+                  email: String(args.email ?? authUser.email ?? ""),
+                  contactNumber: String(args.contact_number ?? ""),
+                  deliveryAddress: String(args.delivery_address ?? ""),
+                  paymentMethod: (String(args.payment_method ?? "cod") as PaymentMethod),
+                  notes: args.notes ? String(args.notes) : undefined,
+                },
               orderItems.map((i) => ({
                 productId: i.product_id,
                 quantity: i.quantity,
@@ -702,6 +771,7 @@ export async function POST(req: Request) {
                 order_number: orderRes.orderNumber,
                 total_amount: orderRes.totalAmount,
               };
+              }
             }
           }
         } else if (fnName === "update_customer_order") {
@@ -827,6 +897,17 @@ export async function POST(req: Request) {
           const targetPath = String(args.path ?? "/products");
           clientActions.push({ type: "NAVIGATE", path: targetPath });
           toolResult = { ok: true, navigatedTo: targetPath };
+        } else if (fnName === "open_auth_dialog") {
+          const mode = args.mode === "signup" ? "signup" : "login";
+          if (!clientActions.some((a) => a.type === "OPEN_AUTH_MODAL")) {
+            clientActions.push({ type: "OPEN_AUTH_MODAL", mode });
+          }
+          toolResult = {
+            ok: true,
+            opened: true,
+            mode,
+            signed_in: Boolean(authUser),
+          };
         }
 
         deepseekMessages.push({
@@ -861,9 +942,18 @@ export async function POST(req: Request) {
       toolsUsed: [...new Set(executedTools)],
       quota: postQuota ?? {
         daily_limit: preQuota.daily_limit,
+        guest_limit: preQuota.guest_limit ?? 5,
         used_today: preQuota.used_today + 1,
-        remaining: Math.max(0, preQuota.daily_limit - (preQuota.used_today + 1)),
-        allowed: preQuota.used_today + 1 < preQuota.daily_limit,
+        remaining: Math.max(
+          0,
+          (authUser ? preQuota.daily_limit : preQuota.guest_limit ?? 5) -
+            (preQuota.used_today + 1),
+        ),
+        allowed:
+          preQuota.used_today + 1 <
+          (authUser ? preQuota.daily_limit : preQuota.guest_limit ?? 5),
+        is_authenticated: Boolean(authUser),
+        require_auth: !authUser && preQuota.used_today + 1 >= 5,
       },
     });
   } catch (err) {
