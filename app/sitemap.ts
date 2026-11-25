@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedSitemapData } from "@/features/catalog/lib/catalog-cache";
 import { getSiteUrl } from "@/lib/seo";
 import { hasEnvVars } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 86400;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getSiteUrl();
@@ -40,24 +40,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   try {
-    const supabase = await createClient();
-    const [{ data: products }, { data: categories }] = await Promise.all([
-      supabase
-        .from("products")
-        .select("id, created_at")
-        .eq("status", "active")
-        .order("created_at", { ascending: false }),
-      supabase.from("categories").select("slug, created_at"),
-    ]);
+    const { products, categories } = await getCachedSitemapData();
 
-    const categoryRoutes: MetadataRoute.Sitemap = (categories ?? []).map((c) => ({
+    const categoryRoutes: MetadataRoute.Sitemap = categories.map((c) => ({
       url: `${baseUrl}/products?category=${encodeURIComponent(c.slug)}`,
       lastModified: new Date(c.created_at || Date.now()),
       changeFrequency: "weekly",
       priority: 0.8,
     }));
 
-    const productRoutes: MetadataRoute.Sitemap = (products ?? []).map((p) => ({
+    const productRoutes: MetadataRoute.Sitemap = products.map((p) => ({
       url: `${baseUrl}/products/${p.id}`,
       lastModified: new Date(p.created_at || Date.now()),
       changeFrequency: "daily",

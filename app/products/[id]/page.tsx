@@ -6,14 +6,15 @@ import {
   ProductDetail,
   ProductDetailSkeleton,
 } from "@/features/catalog/components/product-detail";
-import { createClient } from "@/lib/supabase/server";
+import { getProductImages } from "@/features/catalog/lib/catalog";
 import {
-  getFeaturedCategories,
-  getProductById,
-} from "@/features/catalog/lib/catalog";
+  getCachedFeaturedCategories,
+  getCachedProductById,
+  getCachedProductSeo,
+} from "@/features/catalog/lib/catalog-cache";
 import { getSiteUrl } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 86400;
 
 export async function generateMetadata({
   params,
@@ -21,15 +22,10 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const supabase = await createClient();
-  const [product, categories, seoRes] = await Promise.all([
-    getProductById(supabase, id),
-    getFeaturedCategories(supabase),
-    supabase
-      .from("products")
-      .select("seo_title, seo_description, seo_keywords")
-      .eq("id", id)
-      .maybeSingle(),
+  const [product, categories, seoRow] = await Promise.all([
+    getCachedProductById(id),
+    getCachedFeaturedCategories(),
+    getCachedProductSeo(id),
   ]);
 
   if (!product) {
@@ -39,13 +35,7 @@ export async function generateMetadata({
     };
   }
 
-  const seoRow = seoRes.data as
-    | {
-        seo_title?: string | null;
-        seo_description?: string | null;
-        seo_keywords?: string | null;
-      }
-    | null;
+  const images = getProductImages(product);
 
   const category = categories.find((c) => c.id === product.category_id);
   const baseUrl = getSiteUrl();
@@ -86,15 +76,16 @@ export async function generateMetadata({
       siteName: "elloll",
       locale: "ar_EG",
       type: "website",
-      images: product.image_url
-        ? [{ url: product.image_url, alt: product.name }]
-        : undefined,
+      images:
+        images.length > 0
+          ? images.map((url) => ({ url, alt: product.name }))
+          : undefined,
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: product.image_url ? [product.image_url] : undefined,
+      images: images.length > 0 ? [images[0]] : undefined,
     },
   };
 }
@@ -105,10 +96,10 @@ async function ProductJsonLd({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const product = await getProductById(supabase, id);
+  const product = await getCachedProductById(id);
   if (!product) return null;
 
+  const images = getProductImages(product);
   const baseUrl = getSiteUrl();
   const jsonLd = {
     "@context": "https://schema.org",
@@ -116,7 +107,7 @@ async function ProductJsonLd({
     name: product.name,
     description:
       product.description || `تسوق ${product.name} من متجر elloll في مصر.`,
-    image: product.image_url ? [product.image_url] : undefined,
+    image: images.length > 0 ? images : undefined,
     brand: {
       "@type": "Brand",
       name: "elloll",

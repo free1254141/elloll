@@ -12,6 +12,7 @@ import {
 } from "@/features/catalog/lib/catalog";
 import { placeOrder, type PaymentMethod } from "@/features/checkout/lib/checkout";
 import type { Product } from "@/features/catalog/lib/catalog";
+import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
 
 type ClientAction =
   | { type: "ADD_TO_CART"; product: Product; quantity: number }
@@ -765,13 +766,14 @@ export async function POST(req: Request) {
             if (!orderRes.ok) {
               toolResult = { error: orderRes.message, code: orderRes.code };
             } else {
+              revalidateCatalogCache();
               clientActions.push({ type: "CLEAR_CART" });
               toolResult = {
                 ok: true,
                 order_number: orderRes.orderNumber,
                 total_amount: orderRes.totalAmount,
               };
-              }
+            }
             }
           }
         } else if (fnName === "update_customer_order") {
@@ -803,6 +805,7 @@ export async function POST(req: Request) {
               p_email: String(args.email ?? ""),
             },
           );
+          if (!canErr) revalidateCatalogCache();
           toolResult = canErr
             ? { error: canErr.message }
             : { ok: true, result: canData };

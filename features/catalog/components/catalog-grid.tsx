@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import {
-  getFeaturedCategories,
   isValidSort,
-  searchCatalog,
+  type Category,
   type ProductsSearchParams,
 } from "@/features/catalog/lib/catalog";
+import {
+  getCachedFeaturedCategories,
+  getCachedSearchCatalog,
+} from "@/features/catalog/lib/catalog-cache";
 import { ProductCard } from "@/features/catalog/components/product-card";
 import { CatalogToolbar } from "@/features/catalog/components/catalog-toolbar";
 import {
@@ -37,7 +39,6 @@ export async function CatalogGrid({
   }
 
   const params = await searchParams;
-  const supabase = await createClient();
   const requestedPage = toPage(params.page);
   const sort = isValidSort(params.sort) ? params.sort : "newest";
   const inStockOnly = params.stock === "1";
@@ -49,7 +50,7 @@ export async function CatalogGrid({
       : "all";
   const categorySlugSpecified = Boolean(params.category);
 
-  const categories = await getFeaturedCategories(supabase);
+  const categories = await getCachedFeaturedCategories();
   const activeCategory =
     categories.find((c) => c.slug === params.category) ?? null;
 
@@ -65,7 +66,7 @@ export async function CatalogGrid({
     );
   }
 
-  const result = await searchCatalog(supabase, {
+  const result = await getCachedSearchCatalog({
     q: params.q,
     categoryId: activeCategory?.id,
     sort,
@@ -78,7 +79,7 @@ export async function CatalogGrid({
   const page = Math.min(requestedPage, result.totalPages);
   const clamped = page !== requestedPage;
   const effectiveResult = clamped
-    ? await searchCatalog(supabase, {
+    ? await getCachedSearchCatalog({
         q: params.q,
         categoryId: activeCategory?.id,
         sort,
@@ -134,7 +135,7 @@ function CatalogFrame({
   empty,
   children,
 }: {
-  categories: Awaited<ReturnType<typeof getFeaturedCategories>>;
+  categories: Category[];
   total: number;
   categoryName?: string;
   categoryNotFound?: boolean;

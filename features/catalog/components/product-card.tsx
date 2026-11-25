@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { Check, Eye, ShoppingCart, XCircle } from "lucide-react";
+import { Check, Eye, Images, ShoppingCart, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
-import type { Category, Product } from "@/features/catalog/lib/catalog";
+import { getProductImages, type Category, type Product } from "@/features/catalog/lib/catalog";
 import { useCartStore } from "@/features/cart/lib/cart";
 import { useLanguage } from "@/lib/i18n";
 
@@ -24,6 +25,9 @@ export function ProductCard({
   const [justAdded, setJustAdded] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outOfStock = product.stock_quantity === 0;
+  const images = getProductImages(product);
+  const primaryImage = images[0] || product.image_url;
+  const secondaryImage = images.length > 1 ? images[1] : null;
   const categoryName =
     categories?.find((c) => c.id === product.category_id)?.name ?? null;
 
@@ -49,13 +53,30 @@ export function ProductCard({
       className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
     >
       <div className="relative aspect-square overflow-hidden bg-muted">
-        {/* eslint-disable-next-line @next/next/no-img-element -- remote images from seed/Storage */}
-        <img
-          src={product.image_url}
+        <Image
+          src={primaryImage}
           alt={product.name}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className={`object-cover transition-all duration-300 ${
+            secondaryImage ? "group-hover:opacity-0" : "group-hover:scale-105"
+          }`}
         />
+        {secondaryImage && (
+          <Image
+            src={secondaryImage}
+            alt={`${product.name} alternate view`}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover opacity-0 transition-all duration-300 group-hover:scale-105 group-hover:opacity-100"
+          />
+        )}
+        {images.length > 1 && (
+          <span className="absolute end-2 top-2 inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-semibold backdrop-blur">
+            <Images className="h-3 w-3 text-amber-500" />
+            {images.length}
+          </span>
+        )}
         {outOfStock && (
           <span className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">
             <XCircle className="h-3 w-3" />

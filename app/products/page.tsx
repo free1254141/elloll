@@ -7,8 +7,7 @@ import {
   CatalogGridSkeleton,
 } from "@/features/catalog/components/catalog-grid";
 import type { ProductsSearchParams } from "@/features/catalog/lib/catalog";
-import { getFeaturedCategories } from "@/features/catalog/lib/catalog";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedFeaturedCategories } from "@/features/catalog/lib/catalog-cache";
 import { getSiteUrl } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -25,8 +24,7 @@ export async function generateMetadata({
 
   if (sp.category) {
     try {
-      const supabase = await createClient();
-      const cats = await getFeaturedCategories(supabase);
+      const cats = await getCachedFeaturedCategories();
       const matched = cats.find((c) => c.slug === sp.category);
       if (matched) {
         title = `${matched.name} — تسوق أونلاين في مصر | elloll`;

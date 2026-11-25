@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
 import {
   placeOrder,
   type CheckoutDetails,
@@ -105,5 +106,9 @@ export async function submitCheckout(input: {
   }
 
   const supabase = await createClient();
-  return placeOrder(supabase, details, items);
+  const res = await placeOrder(supabase, details, items);
+  if (res.ok) {
+    revalidateCatalogCache();
+  }
+  return res;
 }

@@ -28,7 +28,7 @@ export function AccountButton() {
   }
 
   return (
-    <div ref={wrapRef} className="relative" dir={dir}>
+    <div ref={wrapRef} className="relative">
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
@@ -53,7 +53,10 @@ export function AccountButton() {
       </button>
 
       {menuOpen && (
-        <div className="absolute end-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-border bg-background p-2 shadow-xl">
+        <div
+          dir={dir}
+          className="absolute right-0 left-auto top-full z-50 mt-1.5 w-60 max-w-[calc(100vw-1rem)] origin-top-right overflow-hidden rounded-xl border border-border bg-background p-2 shadow-xl"
+        >
           <div className="border-b border-border px-2.5 pb-2 pt-1">
             <p className="flex items-center gap-1.5 truncate text-xs font-bold">
               <User className="h-3.5 w-3.5 text-amber-500" />

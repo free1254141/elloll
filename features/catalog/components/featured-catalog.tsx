@@ -1,9 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import {
-  getFeaturedCategories,
-  getFeaturedProducts,
-} from "@/features/catalog/lib/catalog";
+  getCachedFeaturedCategories,
+  getCachedFeaturedProducts,
+} from "@/features/catalog/lib/catalog-cache";
 import { HomeSmartCatalog } from "@/features/catalog/components/home-smart-catalog";
 
 export async function FeaturedCatalog() {
@@ -11,10 +10,9 @@ export async function FeaturedCatalog() {
     return <SetupHint />;
   }
 
-  const supabase = await createClient();
   const [categories, products] = await Promise.all([
-    getFeaturedCategories(supabase),
-    getFeaturedProducts(supabase, 24),
+    getCachedFeaturedCategories(),
+    getCachedFeaturedProducts(24),
   ]);
 
   if (products.length === 0) {

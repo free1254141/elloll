@@ -8,6 +8,7 @@ import {
   type CategoryMutationResult,
   type DeleteCategoryResult,
 } from "@/features/admin/lib/categories/categories";
+import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
 
 /**
  * Category write actions (ticket 08). The RLS admin policies on `categories`
@@ -19,7 +20,9 @@ export async function createCategoryAction(
   name: string,
 ): Promise<CategoryMutationResult> {
   const supabase = await createClient();
-  return createCategory(supabase, name);
+  const res = await createCategory(supabase, name);
+  if (res.ok) revalidateCatalogCache();
+  return res;
 }
 
 export async function renameCategoryAction(
@@ -27,12 +30,16 @@ export async function renameCategoryAction(
   name: string,
 ): Promise<CategoryMutationResult> {
   const supabase = await createClient();
-  return renameCategory(supabase, id, name);
+  const res = await renameCategory(supabase, id, name);
+  if (res.ok) revalidateCatalogCache();
+  return res;
 }
 
 export async function deleteCategoryAction(
   id: string,
 ): Promise<DeleteCategoryResult> {
   const supabase = await createClient();
-  return deleteCategory(supabase, id);
+  const res = await deleteCategory(supabase, id);
+  if (res.ok) revalidateCatalogCache();
+  return res;
 }

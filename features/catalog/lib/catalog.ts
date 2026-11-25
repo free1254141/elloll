@@ -15,6 +15,7 @@ export type Product = {
   price: number;
   stock_quantity: number;
   image_url: string;
+  image_urls?: string[];
   status: ProductStatus;
   category_id: string | null;
   seo_title?: string | null;
@@ -23,7 +24,27 @@ export type Product = {
 };
 
 export const PRODUCT_COLUMNS =
-  "id, name, description, price, stock_quantity, image_url, status, category_id";
+  "id, name, description, price, stock_quantity, image_url, image_urls, status, category_id";
+
+/** Returns ordered, deduplicated product gallery image URLs (primary cover first). */
+export function getProductImages(
+  product: Pick<Product, "image_url" | "image_urls">,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const url of product.image_urls ?? []) {
+    const clean = typeof url === "string" ? url.trim() : "";
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      out.push(clean);
+    }
+  }
+  const cover = typeof product.image_url === "string" ? product.image_url.trim() : "";
+  if (cover && !seen.has(cover)) {
+    out.unshift(cover);
+  }
+  return out;
+}
 
 export type CatalogSort = "newest" | "price-asc" | "price-desc";
 

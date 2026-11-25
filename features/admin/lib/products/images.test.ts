@@ -5,12 +5,14 @@ import { createMockSupabase, type MockSupabase } from "@/lib/testing/mock-supaba
 import {
   compressImage,
   createProductWithImage,
+  createProductWithImages,
   deleteProductWithImage,
   imagePathFromUrl,
   IMAGE_MAX_DIMENSION,
   PRODUCT_IMAGE_BUCKET,
   removeProductImage,
   updateProductWithImage,
+  updateProductWithImages,
   uploadProductImage,
 } from "./images";
 import type { ProductInput } from "./products";
@@ -303,5 +305,66 @@ describe("deleteProductWithImage (ADR-0008)", () => {
 
     expect(result).toEqual({ ok: true });
     expect(supabase.db.products).toEqual([]);
+  });
+});
+
+describe("multi-image products (4+ gallery images)", () => {
+  it("uploads 4 images and stores ordered image_urls with first as cover", async () => {
+    const supabase = createMockSupabase();
+    const files = await Promise.all([
+      makePng(80, 80),
+      makePng(80, 80),
+      makePng(80, 80),
+      makePng(80, 80),
+    ]);
+
+    const result = await createProductWithImages(toClient(supabase), input, files);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(supabase.storageObjects[PRODUCT_IMAGE_BUCKET]).toHaveLength(4);
+    expect(result.product.image_urls).toHaveLength(4);
+    expect(result.product.image_url).toBe(result.product.image_urls?.[0]);
+  });
+
+  it("updates gallery on edit: keeps selected URLs, uploads new images, removes unkept ones", async () => {
+    const oldUrls = [
+      BUCKET_URL("products/1.webp"),
+      BUCKET_URL("products/2.webp"),
+      BUCKET_URL("products/3.webp"),
+    ];
+    const supabase = createMockSupabase({
+      products: [
+        {
+          id: "p1",
+          name: "Hoodie",
+          description: "Cotton",
+          price: 500,
+          stock_quantity: 10,
+          image_url: oldUrls[0],
+          image_urls: oldUrls,
+          status: "active",
+          category_id: "c1",
+        },
+      ],
+    });
+    for (const p of ["products/1.webp", "products/2.webp", "products/3.webp"]) {
+      await supabase.storage.from(PRODUCT_IMAGE_BUCKET).upload(p, new Uint8Array([1]));
+    }
+
+    const newFiles = [await makePng(60, 60), await makePng(60, 60)];
+    const result = await updateProductWithImages(
+      toClient(supabase),
+      "p1",
+      { ...input, name: "Hoodie Updated" },
+      { keptImageUrls: [oldUrls[1], oldUrls[0]], newFiles },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.product.image_urls).toHaveLength(4);
+    expect(result.product.image_url).toBe(oldUrls[1]);
+    expect(supabase.storageObjects[PRODUCT_IMAGE_BUCKET].some((o) => o.name === "products/3.webp")).toBe(false);
+    expect(supabase.storageObjects[PRODUCT_IMAGE_BUCKET]).toHaveLength(4);
   });
 });

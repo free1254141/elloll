@@ -7,7 +7,6 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
-  Download,
   FolderTree,
   Headset,
   LayoutDashboard,
@@ -15,7 +14,6 @@ import {
   Menu,
   Package,
   ShoppingCart,
-  Smartphone,
   Users,
   X,
   type LucideIcon,
@@ -269,17 +267,6 @@ export function AdminNav() {
                   onNavigate={() => setMobileOpen(false)}
                 />
               ))}
-              <a
-                href="/elloll.apk"
-                download="elloll.apk"
-                className="mt-2 flex w-full items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20"
-              >
-                <Smartphone className="h-4 w-4 shrink-0" />
-                <span className="truncate">
-                  {isAr ? "تحميل تطبيق الأندرويد APK" : "Download Android APK"}
-                </span>
-                <Download className="ms-auto h-3.5 w-3.5 shrink-0" />
-              </a>
             </nav>
             <div className="border-t border-border p-3">
               <LogoutButton />
@@ -320,26 +307,6 @@ export function AdminNav() {
               }
             />
           ))}
-          <a
-            href="/elloll.apk"
-            download="elloll.apk"
-            title={isAr ? "تحميل تطبيق الأندرويد APK" : "Download Android APK"}
-            className={
-              collapsed
-                ? "mt-2 flex w-full items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-amber-500 transition-colors hover:bg-amber-500/20"
-                : "mt-2 flex w-full items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20"
-            }
-          >
-            <Smartphone className="h-4 w-4 shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="truncate">
-                  {isAr ? "تطبيق الأندرويد (APK)" : "Android App (APK)"}
-                </span>
-                <Download className="ms-auto h-3.5 w-3.5 shrink-0" />
-              </>
-            )}
-          </a>
         </nav>
         <div className="border-t border-border p-3">
           <div

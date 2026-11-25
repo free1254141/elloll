@@ -2,9 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import {
-  createProductWithImage,
+  createProductWithImages,
   deleteProductWithImage,
-  updateProductWithImage,
+  updateProductWithImages,
 } from "@/features/admin/lib/products/images";
 import {
   updateProductStatus,
@@ -12,6 +12,7 @@ import {
   type ProductMutationResult,
 } from "@/features/admin/lib/products/products";
 import type { ProductStatus } from "@/features/catalog/lib/catalog";
+import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
 
 /**
  * Product write actions (ticket 09). The RLS admin policies on `products`
@@ -78,6 +79,16 @@ function parseProductForm(
   };
 }
 
+function collectImageFiles(formData: FormData): File[] {
+  const entries = [
+    ...formData.getAll("images"),
+    ...formData.getAll("image"),
+  ];
+  return entries.filter(
+    (entry): entry is File => entry instanceof File && entry.size > 0,
+  );
+}
+
 export async function createProductAction(
   formData: FormData,
 ): Promise<ProductMutationResult> {
@@ -87,13 +98,16 @@ export async function createProductAction(
     return { ok: false, message: error ?? "Invalid form data." };
   }
 
-  // The image is mandatory on create.
-  const file = formData.get("image") as File | null;
-  if (!file || file.size === 0) {
+  const files = collectImageFiles(formData);
+  if (files.length === 0) {
     return { ok: false, message: "An image is required." };
   }
 
-  return createProductWithImage(supabase, input, file);
+  const res = await createProductWithImages(supabase, input, files);
+  if (res.ok) {
+    revalidateCatalogCache(res.product.id);
+  }
+  return res;
 }
 
 export async function updateProductAction(
@@ -106,18 +120,52 @@ export async function updateProductAction(
     return { ok: false, message: error ?? "Invalid form data." };
   }
 
-  // The image is optional on edit: keep the current URL unless a new file is
-  // provided (the current URL is read from the database by the seam).
-  const file = formData.get("image") as File | null;
+  let keptImageUrls: string[] = [];
+  const keptRaw = formData.get("kept_image_urls");
+  if (typeof keptRaw === "string" && keptRaw.trim()) {
+    try {
+      const parsed = JSON.parse(keptRaw);
+      if (Array.isArray(parsed)) {
+        keptImageUrls = parsed.filter(
+          (u): u is string => typeof u === "string" && u.trim().length > 0,
+        );
+      }
+    } catch {
+      // ignore malformed JSON, will check existing / new files
+    }
+  } else {
+    // Fallback for callers that didn't send kept_image_urls: retain current primary DB image
+    const { data: existing } = await supabase
+      .from("products")
+      .select("image_url, image_urls")
+      .eq("id", id)
+      .maybeSingle();
+    const row = existing as { image_url?: string; image_urls?: string[] } | null;
+    keptImageUrls = Array.from(
+      new Set([row?.image_url, ...(row?.image_urls ?? [])].filter((u): u is string => Boolean(u))),
+    );
+  }
 
-  return updateProductWithImage(supabase, id, input, file);
+  const newFiles = collectImageFiles(formData);
+  const res = await updateProductWithImages(supabase, id, input, {
+    keptImageUrls,
+    newFiles,
+  });
+  if (res.ok) {
+    revalidateCatalogCache(id);
+  }
+  return res;
 }
 
 export async function deleteProductAction(
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const supabase = await createClient();
-  return deleteProductWithImage(supabase, id);
+  const res = await deleteProductWithImage(supabase, id);
+  if (res.ok) {
+    revalidateCatalogCache(id);
+  }
+  return res;
 }
 
 export async function toggleProductStatusAction(
@@ -125,5 +173,9 @@ export async function toggleProductStatusAction(
   status: ProductStatus,
 ): Promise<ProductMutationResult> {
   const supabase = await createClient();
-  return updateProductStatus(supabase, id, status);
+  const res = await updateProductStatus(supabase, id, status);
+  if (res.ok) {
+    revalidateCatalogCache(id);
+  }
+  return res;
 }

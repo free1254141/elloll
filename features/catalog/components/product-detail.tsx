@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, PackageCheck, Truck } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
+import { getProductImages } from "@/features/catalog/lib/catalog";
 import {
-  getFeaturedCategories,
-  getProductById,
-  getRelatedProducts,
-} from "@/features/catalog/lib/catalog";
+  getCachedFeaturedCategories,
+  getCachedProductById,
+  getCachedRelatedProducts,
+} from "@/features/catalog/lib/catalog-cache";
 import { ProductCard } from "@/features/catalog/components/product-card";
+import { ProductGallery } from "@/features/catalog/components/product-gallery";
 import { AddToCart } from "@/features/catalog/components/add-to-cart";
 import { Button } from "@/components/ui/button";
 
@@ -27,8 +28,7 @@ export async function ProductDetail({
   }
 
   const { id } = await params;
-  const supabase = await createClient();
-  const product = await getProductById(supabase, id);
+  const product = await getCachedProductById(id);
 
   if (!product) {
     notFound();
@@ -37,11 +37,12 @@ export async function ProductDetail({
   // Related products need the product's own category, so they are fetched
   // after the product resolves; categories resolve the slug for the chip.
   const [related, categories] = await Promise.all([
-    getRelatedProducts(supabase, product.category_id, product.id),
-    getFeaturedCategories(supabase),
+    getCachedRelatedProducts(product.category_id, product.id),
+    getCachedFeaturedCategories(),
   ]);
   const category =
     categories.find((c) => c.id === product.category_id) ?? null;
+  const images = getProductImages(product);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-8">
@@ -53,14 +54,7 @@ export async function ProductDetail({
       </Button>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-muted">
-          {/* eslint-disable-next-line @next/next/no-img-element -- remote images from seed/Storage */}
-          <img
-            src={product.image_url}
-            alt={product.name}
-            className="h-full w-full object-cover"
-          />
-        </div>
+        <ProductGallery name={product.name} images={images} />
 
         <div className="flex flex-col gap-5">
           <div>

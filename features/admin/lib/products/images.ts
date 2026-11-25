@@ -24,6 +24,7 @@ import {
  */
 
 export const PRODUCT_IMAGE_BUCKET = "product-images";
+export const MAX_PRODUCT_IMAGES = 10;
 export const IMAGE_MAX_DIMENSION = 1600;
 export const IMAGE_WEBP_QUALITY = 80;
 export const IMAGE_OUTPUT_TYPE = "image/webp";
@@ -90,7 +91,11 @@ export async function uploadProductImage(
   const path = `products/${crypto.randomUUID()}.webp`;
   const { error } = await client.storage
     .from(PRODUCT_IMAGE_BUCKET)
-    .upload(path, processed, { contentType: IMAGE_OUTPUT_TYPE, upsert: false });
+    .upload(path, processed, {
+      contentType: IMAGE_OUTPUT_TYPE,
+      cacheControl: "31536000",
+      upsert: false,
+    });
   if (error) {
     return { error: `Upload failed: ${error.message}` };
   }
@@ -175,14 +180,134 @@ export async function updateProductWithImage(
   return result;
 }
 
-/** Deletes the Product, then best-effort removes its Storage object (ADR-0008). */
+/**
+ * Uploads multiple product images (1..MAX_PRODUCT_IMAGES) to Supabase Storage,
+ * setting the first image as primary `image_url` and storing all URLs in
+ * `image_urls`. Cleans up all uploaded objects best-effort on failure.
+ */
+export async function createProductWithImages(
+  client: SupabaseClient,
+  input: ProductInput,
+  files: File[],
+): Promise<ProductMutationResult> {
+  const cleanFiles = files.filter((f) => f && f.size > 0).slice(0, MAX_PRODUCT_IMAGES);
+  if (cleanFiles.length === 0) {
+    return { ok: false, message: "At least one product image is required." };
+  }
+
+  const uploadedUrls: string[] = [];
+  for (const file of cleanFiles) {
+    const upload = await uploadProductImage(client, file);
+    if ("error" in upload) {
+      await Promise.all(uploadedUrls.map((url) => removeProductImage(client, url)));
+      return { ok: false, message: upload.error };
+    }
+    uploadedUrls.push(upload.url);
+  }
+
+  const result = await createProduct(client, {
+    ...input,
+    image_url: uploadedUrls[0],
+    image_urls: uploadedUrls,
+  });
+  if (!result.ok) {
+    await Promise.all(uploadedUrls.map((url) => removeProductImage(client, url)));
+  }
+  return result;
+}
+
+/**
+ * Updates a product with an ordered set of kept existing URLs plus any newly
+ * uploaded files (up to MAX_PRODUCT_IMAGES total), then removes orphaned
+ * Storage objects best-effort after the DB write succeeds.
+ */
+export async function updateProductWithImages(
+  client: SupabaseClient,
+  id: string,
+  input: ProductInput,
+  options: { keptImageUrls: string[]; newFiles: File[] },
+): Promise<ProductMutationResult> {
+  const { data: current } = await client
+    .from("products")
+    .select("image_url, image_urls")
+    .eq("id", id)
+    .maybeSingle();
+
+  const row = current as { image_url?: string | null; image_urls?: string[] | null } | null;
+  const previousUrls = Array.from(
+    new Set(
+      [row?.image_url, ...(row?.image_urls ?? [])].filter(
+        (u): u is string => Boolean(u && u.trim()),
+      ),
+    ),
+  );
+
+  const keptClean = options.keptImageUrls
+    .map((u) => u.trim())
+    .filter(Boolean);
+  const newFiles = options.newFiles.filter((f) => f && f.size > 0);
+  const remainingSlots = Math.max(0, MAX_PRODUCT_IMAGES - keptClean.length);
+  const filesToUpload = newFiles.slice(0, remainingSlots);
+
+  if (keptClean.length === 0 && filesToUpload.length === 0) {
+    return {
+      ok: false,
+      message: "A product must keep at least one image.",
+    };
+  }
+
+  const uploadedUrls: string[] = [];
+  for (const file of filesToUpload) {
+    const upload = await uploadProductImage(client, file);
+    if ("error" in upload) {
+      await Promise.all(uploadedUrls.map((url) => removeProductImage(client, url)));
+      return { ok: false, message: upload.error };
+    }
+    uploadedUrls.push(upload.url);
+  }
+
+  const finalUrls = Array.from(new Set([...keptClean, ...uploadedUrls])).slice(
+    0,
+    MAX_PRODUCT_IMAGES,
+  );
+
+  const result = await updateProduct(client, id, {
+    ...input,
+    image_url: finalUrls[0],
+    image_urls: finalUrls,
+  });
+
+  if (!result.ok) {
+    await Promise.all(uploadedUrls.map((url) => removeProductImage(client, url)));
+    return result;
+  }
+
+  const finalSet = new Set(finalUrls);
+  const removedOld = previousUrls.filter((u) => !finalSet.has(u));
+  if (removedOld.length > 0) {
+    await Promise.all(removedOld.map((url) => removeProductImage(client, url)));
+  }
+
+  return result;
+}
+
+/** Deletes the Product, then best-effort removes all its Storage objects (ADR-0008). */
 export async function deleteProductWithImage(
   client: SupabaseClient,
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const result = await deleteProduct(client, id);
-  if (result.ok && result.image_url) {
-    await removeProductImage(client, result.image_url);
+  if (result.ok) {
+    const urls = Array.from(
+      new Set(
+        [result.image_url, ...(result.image_urls ?? [])].filter(
+          (u): u is string => Boolean(u && u.trim()),
+        ),
+      ),
+    );
+    if (urls.length > 0) {
+      await Promise.all(urls.map((url) => removeProductImage(client, url)));
+    }
   }
   return result.ok ? { ok: true } : result;
 }

@@ -6,6 +6,7 @@ import {
   transitionOrderStatus,
   type OrderStatus,
 } from "@/features/admin/lib/orders/orders";
+import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
 
 /**
  * Moves an Order through the lifecycle. The `transition_order_status`
@@ -22,6 +23,9 @@ export async function transitionOrderStatusAction(
   if (result.ok) {
     revalidatePath("/admin/orders");
     revalidatePath(`/admin/orders/${orderId}`);
+    if (status === "cancelled") {
+      revalidateCatalogCache();
+    }
   }
   return result;
 }

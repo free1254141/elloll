@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
-import type { Category, ProductStatus } from "@/features/catalog/lib/catalog";
+import { AlertTriangle, ImagePlus, Loader2, Sparkles, Star, X } from "lucide-react";
+import { getProductImages, type Category, type ProductStatus } from "@/features/catalog/lib/catalog";
 import { validateImageFile } from "@/features/admin/lib/products/products";
 import {
   createProductAction,
@@ -27,6 +27,12 @@ type FormState = {
   seo_description: string;
   seo_keywords: string;
 };
+
+type GalleryEntry =
+  | { kind: "existing"; id: string; url: string }
+  | { kind: "new"; id: string; file: File; previewUrl: string };
+
+const MAX_IMAGES = 10;
 
 export function ProductFormModal({
   mode,
@@ -56,9 +62,14 @@ export function ProductFormModal({
     seo_description: product?.seo_description ?? "",
     seo_keywords: product?.seo_keywords ?? "",
   }));
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(
-    product?.image_url ?? null,
+
+  const initialUrls = product ? getProductImages(product) : [];
+  const [gallery, setGallery] = useState<GalleryEntry[]>(() =>
+    initialUrls.map((url, idx) => ({
+      kind: "existing",
+      id: `existing-${idx}-${url}`,
+      url,
+    })),
   );
   const [fileError, setFileError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,7 +79,12 @@ export function ProductFormModal({
   const [dragging, setDragging] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const inFlightRef = useRef(false);
-  const previewUrlRef = useRef<string | null>(null);
+  const objectUrlsRef = useRef<string[]>([]);
+
+  const galleryUrlsKey = gallery
+    .map((g) => (g.kind === "existing" ? g.url : `new:${g.id}`))
+    .join("|");
+  const initialUrlsKey = initialUrls.join("|");
 
   const isDirty =
     mode === "create" ||
@@ -81,7 +97,7 @@ export function ProductFormModal({
     form.seo_title !== (product?.seo_title ?? "") ||
     form.seo_description !== (product?.seo_description ?? "") ||
     form.seo_keywords !== (product?.seo_keywords ?? "") ||
-    file !== null;
+    galleryUrlsKey !== initialUrlsKey;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -98,7 +114,10 @@ export function ProductFormModal({
 
   useEffect(
     () => () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      for (const u of objectUrlsRef.current) {
+        URL.revokeObjectURL(u);
+      }
+      objectUrlsRef.current = [];
     },
     [],
   );
@@ -107,28 +126,60 @@ export function ProductFormModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleFileChange(selected: File | null) {
-    setFile(selected);
-    if (!selected) {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
+  function handleAddFiles(selectedFiles: FileList | File[] | null) {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    const incoming = Array.from(selectedFiles);
+    const availableSlots = MAX_IMAGES - gallery.length;
+    if (availableSlots <= 0) {
+      setFileError(
+        isAr
+          ? `الحد الأقصى ${MAX_IMAGES} صور للمنتج الواحد.`
+          : `Maximum ${MAX_IMAGES} images per product.`,
+      );
+      return;
+    }
+
+    const accepted: GalleryEntry[] = [];
+    let firstError: string | null = null;
+    for (const f of incoming.slice(0, availableSlots)) {
+      const invalid = validateImageFile(f);
+      if (invalid) {
+        if (!firstError) firstError = invalid;
+        continue;
       }
-      setPreview(product?.image_url ?? null);
-      setFileError(null);
-      return;
+      const previewUrl = URL.createObjectURL(f);
+      objectUrlsRef.current.push(previewUrl);
+      accepted.push({
+        kind: "new",
+        id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        file: f,
+        previewUrl,
+      });
     }
-    const invalid = validateImageFile(selected);
-    if (invalid) {
-      setFileError(invalid);
-      setPreview(product?.image_url ?? null);
-      return;
+
+    if (incoming.length > availableSlots && !firstError) {
+      firstError = isAr
+        ? `تم قبول أول ${availableSlots} صور فقط (الحد الأقصى ${MAX_IMAGES}).`
+        : `Only the first ${availableSlots} images were added (max ${MAX_IMAGES}).`;
     }
+
+    setFileError(firstError);
+    if (accepted.length > 0) {
+      setGallery((prev) => [...prev, ...accepted]);
+    }
+  }
+
+  function handleRemoveImage(id: string) {
     setFileError(null);
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    const url = URL.createObjectURL(selected);
-    previewUrlRef.current = url;
-    setPreview(url);
+    setGallery((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function handleMakeCover(id: string) {
+    setGallery((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (!target) return prev;
+      return [target, ...prev.filter((item) => item.id !== id)];
+    });
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -144,8 +195,9 @@ export function ProductFormModal({
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) handleFileChange(droppedFile);
+    if (e.dataTransfer.files?.length) {
+      handleAddFiles(e.dataTransfer.files);
+    }
   }
 
   async function handleGenerateAiSeo() {
@@ -218,8 +270,10 @@ export function ProductFormModal({
       setFormError(isAr ? "أدخل كمية مخزون صحيحة." : "Enter a valid stock quantity.");
       return;
     }
-    if (mode === "create" && !file) {
-      setFileError(isAr ? "صورة المنتج مطلوبة." : "An image is required.");
+    if (gallery.length === 0) {
+      setFileError(
+        isAr ? "يجب إضافة صورة واحدة على الأقل للمنتج." : "At least one product image is required.",
+      );
       return;
     }
 
@@ -236,7 +290,17 @@ export function ProductFormModal({
     if (mode === "edit" && product) {
       formData.set("id", product.id);
     }
-    if (file) formData.set("image", file);
+
+    const keptUrls = gallery
+      .filter((g): g is Extract<GalleryEntry, { kind: "existing" }> => g.kind === "existing")
+      .map((g) => g.url);
+    formData.set("kept_image_urls", JSON.stringify(keptUrls));
+
+    for (const item of gallery) {
+      if (item.kind === "new") {
+        formData.append("images", item.file);
+      }
+    }
 
     inFlightRef.current = true;
     setSubmitting(true);
@@ -311,56 +375,111 @@ export function ProductFormModal({
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
                   {isAr
-                    ? "هذا المنتج مرتبط بطلبات سابقة، لذلك لا يمكن تعديل الاسم أو الصورة أو السعر أو القسم حفاظاً على سجل الطلبات."
-                    : "This product has been ordered. Name, image, price, and category cannot be changed to preserve order history."}
+                    ? "هذا المنتج مرتبط بطلبات سابقة، لذلك لا يمكن تعديل الاسم أو السعر أو القسم حفاظاً على سجل الطلبات (يمكنك تحديث الصور والمخزون والوصف بحرية)."
+                    : "This product has been ordered. Name, price, and category are locked to preserve order history (images, stock, and description remain editable)."}
                 </p>
               </div>
             )}
 
-            {/* Image */}
-            <div className={cn(lockedFields && "pointer-events-none opacity-50")}>
-              <Label>{isAr ? "صورة المنتج" : "Image"}</Label>
+            {/* Multi-Image Gallery */}
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <Label>
+                  {isAr ? "صور المنتج (حتى 10 صور)" : "Product images (up to 10)"}
+                </Label>
+                <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                  {gallery.length} / {MAX_IMAGES}
+                </span>
+              </div>
+
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={cn(
-                  "mt-1.5 flex items-start gap-3 rounded-lg border-2 border-dashed p-4 transition-colors",
+                  "mt-1.5 space-y-3 rounded-lg border-2 border-dashed p-4 transition-colors",
                   dragging ? "border-primary bg-primary/5" : "border-border",
                 )}
               >
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
-                  {preview ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- admin preview
-                    <img src={preview} alt="Product preview" className="h-full w-full object-cover" />
-                  ) : (
-                    <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
-                <label className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1">
-                  <span className="inline-flex h-9 w-fit items-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent">
+                {gallery.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
+                    {gallery.map((item, idx) => {
+                      const src = item.kind === "existing" ? item.url : item.previewUrl;
+                      const isCover = idx === 0;
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "group relative aspect-square overflow-hidden rounded-lg border bg-muted",
+                            isCover ? "border-amber-500 ring-2 ring-amber-500/30" : "border-border",
+                          )}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- admin preview */}
+                          <img
+                            src={src}
+                            alt={`Product image ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          {isCover && (
+                            <span className="absolute start-1 top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-black">
+                              {isAr ? "رئيسية" : "Cover"}
+                            </span>
+                          )}
+                          <div className="absolute end-1 top-1 flex items-center gap-1">
+                            {!isCover && (
+                              <button
+                                type="button"
+                                onClick={() => handleMakeCover(item.id)}
+                                title={isAr ? "تعيين كصورة رئيسية" : "Set as cover"}
+                                className="flex h-6 w-6 items-center justify-center rounded-md bg-background/90 text-amber-500 shadow hover:bg-background"
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(item.id)}
+                              title={isAr ? "حذف الصورة" : "Remove image"}
+                              className="flex h-6 w-6 items-center justify-center rounded-md bg-destructive text-destructive-foreground shadow hover:bg-destructive/90"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <label className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent">
+                    <ImagePlus className="h-4 w-4 text-amber-500" />
                     {dragging
                       ? isAr
-                        ? "أفلت الصورة هنا…"
-                        : "Drop image here…"
-                      : file
+                        ? "أفلت الصور هنا…"
+                        : "Drop images here…"
+                      : gallery.length > 0
                         ? isAr
-                          ? "تغيير الصورة…"
-                          : "Change image…"
+                          ? "إضافة صور أخرى (2، 4، 6+)…"
+                          : "Add more images (2, 4, 6+)…"
                         : isAr
-                          ? "اختر صورة…"
-                          : "Choose image…"}
+                          ? "اختر صور المنتج (متعدد)…"
+                          : "Choose product images…"}
                   </span>
                   <input
                     type="file"
+                    multiple
                     accept="image/jpeg,image/png,image/webp"
-                    onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+                    onChange={(event) => {
+                      handleAddFiles(event.target.files);
+                      event.target.value = "";
+                    }}
                     className="sr-only"
                   />
                   <span className="text-xs text-muted-foreground">
                     {isAr
-                      ? "JPG أو PNG أو WebP · بحد أقصى 5 ميجابايت"
-                      : "JPG, PNG, or WebP · max 5 MB"}
+                      ? "JPG / PNG / WebP · حتى 5 ميجا للصورة · تُضغط وتُحفظ في Supabase Storage"
+                      : "JPG, PNG, WebP · max 5 MB each · saved to Supabase Storage"}
                   </span>
                 </label>
               </div>

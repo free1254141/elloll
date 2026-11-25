@@ -21,6 +21,7 @@ export type ProductInput = {
   status: ProductStatus;
   category_id: string | null;
   image_url: string;
+  image_urls?: string[];
   seo_title?: string | null;
   seo_description?: string | null;
   seo_keywords?: string | null;
@@ -174,7 +175,10 @@ export async function updateProductStatus(
 export async function deleteProduct(
   client: SupabaseClient,
   id: string,
-): Promise<{ ok: true; image_url: string | null } | { ok: false; message: string }> {
+): Promise<
+  | { ok: true; image_url: string | null; image_urls?: string[] | null }
+  | { ok: false; message: string }
+> {
   // Step 1: Get order IDs that reference this product
   const { data: orderItems } = await client
     .from("order_items")
@@ -204,10 +208,20 @@ export async function deleteProduct(
     .from("products")
     .delete()
     .eq("id", id)
-    .select("image_url")
+    .select("image_url, image_urls")
     .single();
   if (error || !data) {
     return { ok: false, message: friendlyError(error, "Could not delete the product.") };
   }
-  return { ok: true, image_url: (data as { image_url: string }).image_url ?? null };
+  const row = data as { image_url?: string | null; image_urls?: string[] | null };
+  return Array.isArray(row.image_urls) && row.image_urls.length > 0
+    ? {
+        ok: true,
+        image_url: row.image_url ?? null,
+        image_urls: row.image_urls,
+      }
+    : {
+        ok: true,
+        image_url: row.image_url ?? null,
+      };
 }
