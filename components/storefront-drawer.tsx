@@ -12,9 +12,18 @@ import { useLanguage, type TranslationKey } from "@/lib/i18n";
 
 const drawerLinks: { href: string; key: TranslationKey }[] = [
   { href: "/", key: "home" },
+  { href: "/collections", key: "collections" },
   { href: "/products", key: "products" },
   { href: "/track", key: "trackOrder" },
   { href: "/support", key: "support" },
+];
+
+const drawerGuideLinks: { href: string; labelAr: string; labelEn: string }[] = [
+  { href: "/shipping-delivery", labelAr: "الشحن والتوصيل", labelEn: "Shipping & Delivery" },
+  { href: "/size-guide", labelAr: "دليل المقاسات", labelEn: "Size Guide" },
+  { href: "/returns-policy", labelAr: "الاستبدال والاسترجاع", labelEn: "Returns Policy" },
+  { href: "/faq", labelAr: "الأسئلة الشائعة", labelEn: "FAQ" },
+  { href: "/about", labelAr: "عن المتجر", labelEn: "About elloll" },
 ];
 
 export function StorefrontDrawer() {
@@ -111,6 +120,21 @@ export function StorefrontDrawer() {
                     </Link>
                   );
                 })}
+                <div className="my-2 border-t border-border/60 pt-2">
+                  {drawerGuideLinks.map((guide) => {
+                    const active = pathname === guide.href;
+                    return (
+                      <Link
+                        key={guide.href}
+                        href={guide.href}
+                        onClick={() => setOpen(false)}
+                        className={`flex items-center justify-between rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${active ? "bg-muted text-foreground font-semibold" : "text-muted-foreground hover:bg-muted"}`}
+                      >
+                        {dir === "rtl" ? guide.labelAr : guide.labelEn}
+                      </Link>
+                    );
+                  })}
+                </div>
                 <Link
                   href="/login"
                   onClick={() => setOpen(false)}

@@ -61,7 +61,7 @@ export async function ProductDetail({
             {category && (
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <Link
-                  href={`/products?category=${category.slug}`}
+                  href={`/collections/${category.slug}`}
                   className="transition-colors hover:text-foreground"
                 >
                   {category.name}
@@ -95,6 +95,28 @@ export async function ProductDetail({
             <div className="flex items-center gap-3 text-muted-foreground">
               <PackageCheck className="h-4 w-4 shrink-0" />
               <span>جاهز للشحن خلال 1–2 يوم عمل</span>
+            </div>
+            <div className="flex flex-wrap gap-3 pt-1 text-xs">
+              <Link
+                href="/size-guide"
+                className="font-medium text-amber-500 hover:underline"
+              >
+                دليل المقاسات
+              </Link>
+              <span className="text-border">•</span>
+              <Link
+                href="/shipping-delivery"
+                className="font-medium text-amber-500 hover:underline"
+              >
+                أسعار الشحن للمحافظات
+              </Link>
+              <span className="text-border">•</span>
+              <Link
+                href="/returns-policy"
+                className="font-medium text-amber-500 hover:underline"
+              >
+                الاستبدال والاسترجاع (14 يوماً)
+              </Link>
             </div>
           </div>
         </div>

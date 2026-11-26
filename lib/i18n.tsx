@@ -10,6 +10,7 @@ const translations = {
   ar: {
     // Nav & Common
     home: "الرئيسية",
+    collections: "الأقسام",
     products: "المنتجات",
     trackOrder: "تتبع الطلب",
     support: "دعم العملاء",
@@ -173,6 +174,7 @@ const translations = {
   },
   en: {
     home: "Home",
+    collections: "Collections",
     products: "Products",
     trackOrder: "Track Order",
     support: "Support",

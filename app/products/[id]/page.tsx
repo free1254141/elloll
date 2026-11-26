@@ -11,10 +11,22 @@ import {
   getCachedFeaturedCategories,
   getCachedProductById,
   getCachedProductSeo,
+  getCachedSitemapData,
 } from "@/features/catalog/lib/catalog-cache";
 import { getSiteUrl } from "@/lib/seo";
+import { hasEnvVars } from "@/lib/utils";
 
 export const revalidate = 86400;
+
+export async function generateStaticParams() {
+  if (!hasEnvVars) return [];
+  try {
+    const { products } = await getCachedSitemapData();
+    return products.map((p) => ({ id: p.id }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({
   params,
@@ -110,6 +122,8 @@ async function ProductJsonLd({
       "@context": "https://schema.org",
       "@type": "Product",
       name: product.name,
+      sku: product.id.slice(0, 8).toUpperCase(),
+      ...(category ? { category: category.name } : {}),
       description:
         product.description || `تسوق ${product.name} من متجر elloll في مصر.`,
       image: images.length > 0 ? images : undefined,
@@ -122,8 +136,49 @@ async function ProductJsonLd({
         url: `${baseUrl}/products/${product.id}`,
         priceCurrency: "EGP",
         price: Number(product.price).toFixed(2),
+        priceValidUntil: "2027-12-31",
         availability: "https://schema.org/InStock",
         itemCondition: "https://schema.org/NewCondition",
+        seller: {
+          "@type": "Organization",
+          name: "elloll",
+        },
+        shippingDetails: {
+          "@type": "OfferShippingDetails",
+          shippingRate: {
+            "@type": "MonetaryAmount",
+            value: "50",
+            currency: "EGP",
+          },
+          shippingDestination: {
+            "@type": "DefinedRegion",
+            addressCountry: "EG",
+          },
+          deliveryTime: {
+            "@type": "ShippingDeliveryTime",
+            handlingTime: {
+              "@type": "QuantitativeValue",
+              minValue: 0,
+              maxValue: 1,
+              unitCode: "DAY",
+            },
+            transitTime: {
+              "@type": "QuantitativeValue",
+              minValue: 1,
+              maxValue: 4,
+              unitCode: "DAY",
+            },
+          },
+        },
+        hasMerchantReturnPolicy: {
+          "@type": "MerchantReturnPolicy",
+          applicableCountry: "EG",
+          returnPolicyCategory:
+            "https://schema.org/MerchantReturnFiniteReturnWindow",
+          merchantReturnDays: 14,
+          returnMethod: "https://schema.org/ReturnByMail",
+          returnFees: "https://schema.org/ReturnShippingFees",
+        },
       },
     },
     {
@@ -143,7 +198,7 @@ async function ProductJsonLd({
                 "@type": "ListItem",
                 position: 3,
                 name: category.name,
-                item: `${baseUrl}/products?category=${encodeURIComponent(category.slug)}`,
+                item: `${baseUrl}/collections/${encodeURIComponent(category.slug)}`,
               },
               {
                 "@type": "ListItem",

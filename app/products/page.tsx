@@ -20,9 +20,11 @@ export async function generateMetadata({
 
   let title = "جميع المنتجات — ملابس وأزياء في مصر | elloll";
   let description =
-    "تصفح تشكيلة elloll الكاملة من الملابس والأزياء العصرية في مصر مع فلاتر ذكية حسب القسم والسعر والتوفر.";
+    "تصفح تشكيلة elloll الكاملة من الملابس والأزياء العصرية في مصر مع فلاتر ذكية حسب القسم والسعر.";
+  let canonicalUrl = `${baseUrl}/products`;
 
   if (sp.category) {
+    canonicalUrl = `${baseUrl}/collections/${encodeURIComponent(sp.category)}`;
     try {
       const cats = await getCachedFeaturedCategories();
       const matched = cats.find((c) => c.slug === sp.category);
@@ -37,17 +39,26 @@ export async function generateMetadata({
     title = `نتائج البحث: ${sp.q} — elloll`;
   }
 
+  const hasFacetedQuery = Boolean(sp.q || sp.sort || sp.price || sp.page);
+
   return {
     title,
     description,
     alternates: {
-      canonical: sp.category
-        ? `${baseUrl}/products?category=${encodeURIComponent(sp.category)}`
-        : `${baseUrl}/products`,
+      canonical: canonicalUrl,
     },
+    ...(hasFacetedQuery
+      ? {
+          robots: {
+            index: false,
+            follow: true,
+          },
+        }
+      : {}),
     openGraph: {
       title,
       description,
+      url: canonicalUrl,
       siteName: "elloll",
       locale: "ar_EG",
       type: "website",

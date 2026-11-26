@@ -9,6 +9,7 @@ export function StorefrontNav() {
   const pathname = usePathname();
   const { t } = useLanguage();
   const isHome = pathname === "/";
+  const isCollections = pathname.startsWith("/collections");
   const isProducts = pathname.startsWith("/products");
   const isTrack = pathname === "/track";
 
@@ -28,6 +29,12 @@ export function StorefrontNav() {
           className={`relative text-sm font-medium transition-colors ${isHome ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}
         >
           {t("home")}
+        </Link>
+        <Link
+          href="/collections"
+          className={`relative text-sm font-medium transition-colors ${isCollections ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          {t("collections")}
         </Link>
         <Link
           href="/products"

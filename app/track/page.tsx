@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { SiteFooter } from "@/components/site-footer";
 import { StorefrontHeader } from "@/components/storefront-header";
 import { TrackPageContent } from "@/features/tracking/components/track-page-content";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "تتبع الطلب — elloll",
-  description: "تابع حالة طلبك في elloll لحظة بلحظة برقم الطلب والبريد الإلكتروني.",
-};
+export const metadata: Metadata = buildPageMetadata({
+  path: "/track",
+  title: "تتبع الطلب لحظة بلحظة — elloll",
+  description:
+    "تابع حالة طلبك في متجر elloll لحظة بلحظة برقم الطلب والبريد الإلكتروني حتى وصوله لباب منزلك.",
+});
 
 export default function TrackOrderPage() {
   return (

@@ -186,5 +186,7 @@ export function revalidateCatalogCache(productId?: string) {
   }
   revalidatePath("/");
   revalidatePath("/products");
+  revalidatePath("/collections");
+  revalidatePath("/collections/[slug]", "page");
   revalidatePath("/sitemap.xml");
 }

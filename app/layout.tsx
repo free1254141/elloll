@@ -48,9 +48,6 @@ export const metadata: Metadata = {
     "تسوق ملابس في مصر",
     "شحن لجميع المحافظات",
   ],
-  alternates: {
-    canonical: defaultUrl,
-  },
   robots: {
     index: true,
     follow: true,
@@ -115,10 +112,18 @@ export default function RootLayout({
       description:
         "متجر elloll للملابس والأزياء العصرية في مصر — شحن لجميع المحافظات.",
       priceRange: "EGP",
+      currenciesAccepted: "EGP",
+      paymentAccepted: "Cash on Delivery",
       areaServed: "EG",
       address: {
         "@type": "PostalAddress",
         addressCountry: "EG",
+      },
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer service",
+        url: `${defaultUrl}/support`,
+        availableLanguage: ["Arabic", "English"],
       },
     },
     {

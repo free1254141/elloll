@@ -42,5 +42,6 @@ export function getCachedShippingSettings(): Promise<ShippingSettings> {
 export function revalidateShippingCache() {
   revalidateTag("shipping", { expire: 0 });
   revalidatePath("/checkout");
+  revalidatePath("/shipping-delivery");
   revalidatePath("/admin/shipping");
 }
