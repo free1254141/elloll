@@ -46,7 +46,7 @@ function parseProductForm(
   const priceRaw = String(formData.get("price") ?? "").trim();
   const stockRaw = String(formData.get("stock_quantity") ?? "").trim();
   const price = Number(priceRaw);
-  const stock_quantity = Number(stockRaw);
+  const stock_quantity = stockRaw === "" ? 999999 : Number(stockRaw);
   const status = String(formData.get("status") ?? "active");
   const categoryRaw = String(formData.get("category_id") ?? "");
   const category_id = categoryRaw ? categoryRaw : null;
@@ -58,15 +58,11 @@ function parseProductForm(
 
   if (!name) return { error: "Product name is required." };
   // Reject blank fields explicitly — Number("") is 0, which would silently
-  // create a $0 / zero-stock product if we only checked the parsed value.
+  // create a $0 product if we only checked the parsed value.
   if (priceRaw === "" || !Number.isFinite(price) || price < 0) {
     return { error: "Enter a valid price." };
   }
-  if (
-    stockRaw === "" ||
-    !Number.isInteger(stock_quantity) ||
-    stock_quantity < 0
-  ) {
+  if (!Number.isInteger(stock_quantity) || stock_quantity < 0) {
     return { error: "Enter a valid stock quantity." };
   }
   if (status !== "active" && status !== "inactive") {

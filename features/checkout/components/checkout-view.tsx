@@ -586,9 +586,6 @@ export function CheckoutView({
                   : `Add ${priceFormatter.format(freeThreshold - subtotal)} more for free shipping`}
               </p>
             )}
-            <p className="mt-3 text-center text-xs text-muted-foreground">
-              {isAr ? "يتم حجز المخزون عند تأكيد الطلب." : "Stock is reserved when you place your order."}
-            </p>
           </aside>
         </div>
       )}

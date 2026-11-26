@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Eye, Images, ShoppingCart, XCircle } from "lucide-react";
+import { Check, Eye, Images, ShoppingCart } from "lucide-react";
 import { useRef, useState } from "react";
 import { getProductImages, type Category, type Product } from "@/features/catalog/lib/catalog";
 import { useCartStore } from "@/features/cart/lib/cart";
@@ -24,7 +24,6 @@ export function ProductCard({
   const { t } = useLanguage();
   const [justAdded, setJustAdded] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const outOfStock = product.stock_quantity === 0;
   const images = getProductImages(product);
   const primaryImage = images[0] || product.image_url;
   const secondaryImage = images.length > 1 ? images[1] : null;
@@ -34,7 +33,6 @@ export function ProductCard({
   function handleAddToCart(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (outOfStock) return;
     addItem(product, 1);
     setJustAdded(true);
     if (addedTimer.current) clearTimeout(addedTimer.current);
@@ -77,12 +75,6 @@ export function ProductCard({
             {images.length}
           </span>
         )}
-        {outOfStock && (
-          <span className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">
-            <XCircle className="h-3 w-3" />
-            {t("outOfStock")}
-          </span>
-        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-3">
@@ -110,14 +102,11 @@ export function ProductCard({
           <button
             type="button"
             onClick={handleAddToCart}
-            disabled={outOfStock}
             aria-label={`Add ${product.name} to cart`}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
               justAdded
                 ? "bg-emerald-600 text-white"
-                : outOfStock
-                  ? "cursor-not-allowed bg-muted text-muted-foreground"
-                  : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+                : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
             }`}
           >
             {justAdded ? (

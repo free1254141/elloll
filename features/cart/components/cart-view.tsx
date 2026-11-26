@@ -130,9 +130,6 @@ function CartContents() {
             <Link href="/checkout">{t("proceedCheckout")}</Link>
           </Button>
         )}
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          {t("stockReservedHint")}
-        </p>
       </aside>
     </div>
   );
@@ -142,7 +139,6 @@ function CartLine({ item }: { item: CartItem }) {
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
   const unavailable = item.unavailable === true;
-  const outOfStock = !unavailable && item.stock_quantity === 0;
 
   return (
     <li className="flex gap-4 p-4">
@@ -171,10 +167,6 @@ function CartLine({ item }: { item: CartItem }) {
             {unavailable ? (
               <p className="mt-1 text-xs font-semibold text-destructive">
                 No longer available — remove
-              </p>
-            ) : outOfStock ? (
-              <p className="mt-1 text-xs font-medium text-destructive">
-                Out of stock — adjust or remove
               </p>
             ) : null}
           </div>
@@ -207,7 +199,7 @@ function CartLine({ item }: { item: CartItem }) {
             <button
               type="button"
               onClick={() => updateQuantity(item.id, item.quantity + 1)}
-              disabled={unavailable || item.quantity >= item.stock_quantity}
+              disabled={unavailable || item.quantity >= 99}
               aria-label="Increase quantity"
               className="flex h-full w-8 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-9"
             >

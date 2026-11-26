@@ -46,7 +46,6 @@ export function ProductsManager({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priceSort, setPriceSort] = useState<"asc" | "desc" | "">("");
-  const [stockSort, setStockSort] = useState<"asc" | "desc" | "">("");
   const [canDelete, setCanDelete] = useState<{
     product: AdminProduct;
     allowed: boolean;
@@ -56,12 +55,6 @@ export function ProductsManager({
 
   function handlePriceSortChange(value: "asc" | "desc" | "") {
     setPriceSort(value);
-    if (value) setStockSort("");
-  }
-
-  function handleStockSortChange(value: "asc" | "desc" | "") {
-    setStockSort(value);
-    if (value) setPriceSort("");
   }
 
   const [modal, setModal] = useState<ModalState>(null);
@@ -223,13 +216,10 @@ export function ProductsManager({
     setCategoryFilter("");
     setStatusFilter("");
     setPriceSort("");
-    setStockSort("");
   }
 
   let filteredProducts = statusFilter
-    ? statusFilter === "out_of_stock"
-      ? products.filter((p) => p.stock_quantity === 0)
-      : products.filter((p) => p.status === statusFilter)
+    ? products.filter((p) => p.status === statusFilter)
     : products;
 
   if (priceSort) {
@@ -238,19 +228,10 @@ export function ProductsManager({
     );
   }
 
-  if (stockSort) {
-    filteredProducts = [...filteredProducts].sort((a, b) =>
-      stockSort === "asc"
-        ? a.stock_quantity - b.stock_quantity
-        : b.stock_quantity - a.stock_quantity,
-    );
-  }
-
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
   const statusOptions = [
     { value: "active", label: isAr ? "نشط (ظاهر)" : "Active" },
     { value: "inactive", label: isAr ? "مخفي" : "Inactive" },
-    { value: "out_of_stock", label: isAr ? "نفد المخزون" : "Out of Stock" },
   ];
 
   return (
@@ -261,8 +242,8 @@ export function ProductsManager({
         </h1>
         <p className="mt-1 text-muted-foreground">
           {isAr
-            ? "إدارة كتالوج المنتجات — التوفر يُحسب من المخزون، والحالة تتحكم في الظهور بالمتجر."
-            : "Manage the catalog. Availability comes from stock — status only controls storefront visibility."}
+            ? "إدارة كتالوج المنتجات — التحكم في المنتجات وظهورها في المتجر."
+            : "Manage catalog products and storefront visibility."}
         </p>
       </div>
 
@@ -309,12 +290,6 @@ export function ProductsManager({
                 onSortChange={handlePriceSortChange}
               />
               <ColumnHeader
-                label={isAr ? "المخزون" : "Stock"}
-                className="px-3 py-3 text-start font-medium lg:px-4"
-                sortValue={stockSort}
-                onSortChange={handleStockSortChange}
-              />
-              <ColumnHeader
                 label={isAr ? "الحالة" : "Status"}
                 className="px-3 py-3 text-start font-medium lg:px-4"
                 filterValue={statusFilter}
@@ -329,7 +304,7 @@ export function ProductsManager({
           <tbody className="divide-y divide-border">
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-16 text-center lg:px-4">
+                <td colSpan={5} className="px-3 py-16 text-center lg:px-4">
                   <p className="text-sm text-muted-foreground">
                     {products.length === 0
                       ? isAr
@@ -353,7 +328,6 @@ export function ProductsManager({
               </tr>
             ) : (
               filteredProducts.map((product) => {
-                const outOfStock = product.stock_quantity === 0;
                 return (
                   <tr
                     key={product.id}
@@ -382,16 +356,6 @@ export function ProductsManager({
                     </td>
                     <td className="px-3 py-3 tabular-nums lg:px-4">
                       {priceFormatter.format(product.price)}
-                    </td>
-                    <td className="px-3 py-3 lg:px-4">
-                      <span
-                        className={cn(
-                          "font-medium tabular-nums",
-                          outOfStock && "text-destructive",
-                        )}
-                      >
-                        {product.stock_quantity}
-                      </span>
                     </td>
                     <td className="px-3 py-3 lg:px-4">
                       <button

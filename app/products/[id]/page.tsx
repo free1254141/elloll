@@ -122,10 +122,7 @@ async function ProductJsonLd({
         url: `${baseUrl}/products/${product.id}`,
         priceCurrency: "EGP",
         price: Number(product.price).toFixed(2),
-        availability:
-          product.stock_quantity > 0
-            ? "https://schema.org/InStock"
-            : "https://schema.org/OutOfStock",
+        availability: "https://schema.org/InStock",
         itemCondition: "https://schema.org/NewCondition",
       },
     },

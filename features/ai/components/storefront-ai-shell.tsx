@@ -420,7 +420,6 @@ export function StorefrontAiShell() {
   }
 
   function handleAddProduct(p: Product) {
-    if (p.stock_quantity <= 0) return;
     addItem(p, 1);
     setJustAddedId(p.id);
     setTimeout(() => setJustAddedId(null), 1400);
@@ -645,7 +644,6 @@ export function StorefrontAiShell() {
                   }
                 >
                   {msg.products.map((p) => {
-                    const out = p.stock_quantity <= 0;
                     const added = justAddedId === p.id;
                     return (
                       <div
@@ -661,21 +659,6 @@ export function StorefrontAiShell() {
                             alt={p.name}
                             className="h-full w-full object-cover"
                           />
-                          <span
-                            className={`absolute start-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              out
-                                ? "bg-destructive text-destructive-foreground"
-                                : "bg-black/70 text-emerald-400 backdrop-blur"
-                            }`}
-                          >
-                            {out
-                              ? locale === "ar"
-                                ? "نفد"
-                                : "Out"
-                              : locale === "ar"
-                                ? `متوفر (${p.stock_quantity})`
-                                : `${p.stock_quantity} left`}
-                          </span>
                         </div>
 
                         <div className="flex flex-1 flex-col gap-1.5 p-3">
@@ -706,7 +689,6 @@ export function StorefrontAiShell() {
                             <Button
                               type="button"
                               size="sm"
-                              disabled={out}
                               onClick={() => handleAddProduct(p)}
                               className={`h-7 gap-1 px-2 text-[11px] ${
                                 added ? "bg-emerald-600 text-white" : ""

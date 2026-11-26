@@ -77,7 +77,6 @@ export async function ProductDetail({
             <span className="text-2xl font-semibold sm:text-3xl">
               {priceFormatter.format(product.price)}
             </span>
-            <StockBadge stockQuantity={product.stock_quantity} />
           </div>
 
           {product.description && (
@@ -148,28 +147,6 @@ export function ProductDetailSkeleton() {
         </div>
       </div>
     </div>
-  );
-}
-
-function StockBadge({ stockQuantity }: { stockQuantity: number }) {
-  if (stockQuantity === 0) {
-    return (
-      <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
-        نفد المخزون
-      </span>
-    );
-  }
-  if (stockQuantity <= 5) {
-    return (
-      <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-        متبقي {stockQuantity} فقط
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-      متوفر ({stockQuantity})
-    </span>
   );
 }
 

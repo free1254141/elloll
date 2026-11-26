@@ -739,18 +739,16 @@ export async function POST(req: Request) {
           const qty = Math.max(1, Number(args.quantity ?? 1));
           if (!prod) {
             toolResult = { error: "Product not found" };
-          } else if (prod.stock_quantity < 1) {
-            toolResult = { error: "Product is out of stock" };
           } else {
             clientActions.push({
               type: "ADD_TO_CART",
               product: prod,
-              quantity: Math.min(qty, prod.stock_quantity),
+              quantity: Math.min(qty, 99),
             });
             toolResult = {
               ok: true,
               added: prod.name,
-              quantity: Math.min(qty, prod.stock_quantity),
+              quantity: Math.min(qty, 99),
             };
           }
         } else if (fnName === "update_cart_quantity") {

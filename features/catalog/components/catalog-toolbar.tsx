@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, RotateCcw, Search } from "lucide-react";
+import { RotateCcw, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SortDropdown } from "@/features/catalog/components/sort-dropdown";
@@ -28,7 +28,6 @@ export function CatalogToolbar({
   const rawSort = searchParams.get("sort");
   const sort: CatalogSort | "" = isValidSort(rawSort) ? rawSort : "";
   const priceRange = (searchParams.get("price") ?? "all") as PriceRangeKey;
-  const inStockOnly = searchParams.get("stock") === "1";
 
   const [draft, setDraft] = useState(q);
   const firstRender = useRef(true);
@@ -82,8 +81,7 @@ export function CatalogToolbar({
     q !== "" ||
     category !== "" ||
     sort !== "" ||
-    priceRange !== "all" ||
-    inStockOnly;
+    priceRange !== "all";
 
   const priceChips: { value: PriceRangeKey; label: string }[] = [
     { value: "all", label: t("priceAll") },
@@ -108,25 +106,7 @@ export function CatalogToolbar({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-          <button
-            type="button"
-            onClick={() =>
-              updateParams(
-                { stock: inStockOnly ? "" : "1" },
-                searchParams,
-              )
-            }
-            className={`inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition-colors sm:w-auto ${
-              inStockOnly
-                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-500"
-                : "border-input bg-background text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {inStockOnly && <Check className="h-3.5 w-3.5 shrink-0" />}
-            <span className="truncate">{t("inStockOnly")}</span>
-          </button>
-
+        <div className="flex flex-wrap items-center gap-2 sm:w-auto">
           <SortDropdown
             value={sort}
             onChange={(next) =>

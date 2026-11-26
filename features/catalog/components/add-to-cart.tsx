@@ -16,8 +16,7 @@ export function AddToCart({ product }: { product: Product }) {
   const [justAdded, setJustAdded] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const outOfStock = product.stock_quantity === 0;
-  const maxQuantity = Math.max(1, product.stock_quantity);
+  const maxQuantity = 99;
 
   // Clear the pending "Added to cart" timer on unmount to avoid setting state
   // on an unmounted component after a quick navigation.
@@ -36,15 +35,6 @@ export function AddToCart({ product }: { product: Product }) {
     setJustAdded(true);
     if (addedTimer.current) clearTimeout(addedTimer.current);
     addedTimer.current = setTimeout(() => setJustAdded(false), 1600);
-  }
-
-  if (outOfStock) {
-    return (
-      <Button disabled size="lg" className="w-full sm:w-auto">
-        <ShoppingCart className="h-4 w-4" />
-        {t("outOfStock")}
-      </Button>
-    );
   }
 
   return (

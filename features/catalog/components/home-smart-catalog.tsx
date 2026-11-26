@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   RotateCcw,
   Search,
 } from "lucide-react";
@@ -34,21 +33,18 @@ export function HomeSmartCatalog({
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState<string>("all");
   const [priceRange, setPriceRange] = useState<PriceRangeKey>("all");
-  const [inStockOnly, setInStockOnly] = useState(false);
   const [sort, setSort] = useState<CatalogSort>("newest");
 
   const hasActiveFilters =
     q.trim() !== "" ||
     categoryId !== "all" ||
     priceRange !== "all" ||
-    inStockOnly ||
     sort !== "newest";
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     const list = products.filter((p) => {
       if (categoryId !== "all" && p.category_id !== categoryId) return false;
-      if (inStockOnly && p.stock_quantity <= 0) return false;
       if (priceRange === "under-500" && p.price >= 500) return false;
       if (priceRange === "500-1500" && (p.price < 500 || p.price > 1500))
         return false;
@@ -70,13 +66,12 @@ export function HomeSmartCatalog({
       return [...list].sort((a, b) => b.price - a.price);
     }
     return list;
-  }, [products, q, categoryId, priceRange, inStockOnly, sort]);
+  }, [products, q, categoryId, priceRange, sort]);
 
   function resetFilters() {
     setQ("");
     setCategoryId("all");
     setPriceRange("all");
-    setInStockOnly(false);
     setSort("newest");
   }
 
@@ -125,19 +120,6 @@ export function HomeSmartCatalog({
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <button
-              type="button"
-              onClick={() => setInStockOnly((v) => !v)}
-              className={`inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition-colors sm:w-auto ${
-                inStockOnly
-                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-500"
-                  : "border-input bg-background text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {inStockOnly && <Check className="h-3.5 w-3.5 shrink-0" />}
-              <span className="truncate">{t("inStockOnly")}</span>
-            </button>
-
             <SortDropdown value={sort} onChange={setSort} />
 
             {hasActiveFilters && (

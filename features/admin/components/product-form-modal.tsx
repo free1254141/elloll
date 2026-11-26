@@ -20,7 +20,6 @@ type FormState = {
   name: string;
   category_id: string;
   price: string;
-  stock_quantity: string;
   status: ProductStatus;
   description: string;
   seo_title: string;
@@ -55,7 +54,6 @@ export function ProductFormModal({
     name: product?.name ?? "",
     category_id: product?.category_id ?? "",
     price: product ? String(product.price) : "",
-    stock_quantity: product ? String(product.stock_quantity) : "",
     status: product?.status ?? "active",
     description: product?.description ?? "",
     seo_title: product?.seo_title ?? "",
@@ -91,7 +89,6 @@ export function ProductFormModal({
     form.name !== (product?.name ?? "") ||
     form.category_id !== (product?.category_id ?? "") ||
     form.price !== (product ? String(product.price) : "") ||
-    form.stock_quantity !== (product ? String(product.stock_quantity) : "") ||
     form.status !== (product?.status ?? "active") ||
     form.description !== (product?.description ?? "") ||
     form.seo_title !== (product?.seo_title ?? "") ||
@@ -262,14 +259,6 @@ export function ProductFormModal({
       setFormError(isAr ? "أدخل سعراً صحيحاً." : "Enter a valid price.");
       return;
     }
-    if (
-      form.stock_quantity === "" ||
-      !Number.isInteger(Number(form.stock_quantity)) ||
-      Number(form.stock_quantity) < 0
-    ) {
-      setFormError(isAr ? "أدخل كمية مخزون صحيحة." : "Enter a valid stock quantity.");
-      return;
-    }
     if (gallery.length === 0) {
       setFileError(
         isAr ? "يجب إضافة صورة واحدة على الأقل للمنتج." : "At least one product image is required.",
@@ -281,7 +270,7 @@ export function ProductFormModal({
     formData.set("name", form.name.trim());
     formData.set("description", form.description.trim());
     formData.set("price", String(Number(form.price)));
-    formData.set("stock_quantity", String(Number(form.stock_quantity)));
+    formData.set("stock_quantity", "999999");
     formData.set("status", form.status);
     formData.set("category_id", form.category_id);
     formData.set("seo_title", form.seo_title.trim());
@@ -375,8 +364,8 @@ export function ProductFormModal({
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
                   {isAr
-                    ? "هذا المنتج مرتبط بطلبات سابقة، لذلك لا يمكن تعديل الاسم أو السعر أو القسم حفاظاً على سجل الطلبات (يمكنك تحديث الصور والمخزون والوصف بحرية)."
-                    : "This product has been ordered. Name, price, and category are locked to preserve order history (images, stock, and description remain editable)."}
+                    ? "هذا المنتج مرتبط بطلبات سابقة، لذلك لا يمكن تعديل الاسم أو السعر أو القسم حفاظاً على سجل الطلبات (يمكنك تحديث الصور والوصف بحرية)."
+                    : "This product has been ordered. Name, price, and category are locked to preserve order history (images and description remain editable)."}
                 </p>
               </div>
             )}
@@ -518,33 +507,19 @@ export function ProductFormModal({
               />
             </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={isAr ? "السعر (ج.م / EGP)" : "Price (EGP)"} htmlFor="product-price">
-                <Input
-                  id="product-price"
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  value={form.price}
-                  onChange={(event) => set("price", event.target.value)}
-                  placeholder="750"
-                  disabled={lockedFields}
-                />
-              </Field>
-              <Field label={isAr ? "الكمية في المخزون" : "Stock quantity"} htmlFor="product-stock">
-                <Input
-                  id="product-stock"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1}
-                  value={form.stock_quantity}
-                  onChange={(event) => set("stock_quantity", event.target.value)}
-                  placeholder="50"
-                />
-              </Field>
-            </div>
+            <Field label={isAr ? "السعر (ج.م / EGP)" : "Price (EGP)"} htmlFor="product-price">
+              <Input
+                id="product-price"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={form.price}
+                onChange={(event) => set("price", event.target.value)}
+                placeholder="750"
+                disabled={lockedFields}
+              />
+            </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={isAr ? "القسم" : "Category"} htmlFor="product-category">
