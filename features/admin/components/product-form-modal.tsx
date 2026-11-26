@@ -494,7 +494,25 @@ export function ProductFormModal({
               <Input
                 id="product-name"
                 value={form.name}
-                onChange={(event) => set("name", event.target.value)}
+                onChange={(event) => {
+                  const cleaned = event.target.value.replace(
+                    /^(?:نبذة باستخدام الذكاء الاصطناعي|ملخص باستخدام الذكاء الاصطناعي|AI Overview)\s*[:\-–—]?\s*/i,
+                    "",
+                  );
+                  set("name", cleaned);
+                }}
+                onBlur={() =>
+                  set(
+                    "name",
+                    form.name
+                      .replace(
+                        /^(?:نبذة باستخدام الذكاء الاصطناعي|ملخص باستخدام الذكاء الاصطناعي|AI Overview)\s*[:\-–—]?\s*/i,
+                        "",
+                      )
+                      .replace(/\s+/g, " ")
+                      .trim(),
+                  )
+                }
                 placeholder="مثال: هودي أوفرسايز قطن مصري أسود"
                 disabled={lockedFields}
               />

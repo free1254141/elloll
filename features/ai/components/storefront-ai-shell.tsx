@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Check,
+  Clock,
   Eye,
+  History,
   Loader2,
   Maximize2,
+  MessageSquarePlus,
   Minimize2,
   Send,
   ShoppingCart,
@@ -51,8 +54,18 @@ interface ChatMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt?: string;
   products?: Product[];
   toolsUsed?: string[];
+}
+
+interface ChatHistoryItem {
+  id: string;
+  session_id: string;
+  message_count: number;
+  last_message_at: string;
+  created_at: string;
+  preview?: string | null;
 }
 
 type ClientAction =
@@ -98,6 +111,9 @@ export function StorefrontAiShell() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [conversations, setConversations] = useState<ChatHistoryItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [visitorId, setVisitorId] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
@@ -113,6 +129,7 @@ export function StorefrontAiShell() {
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevPathRef = useRef(pathname);
+  const welcomeRef = useRef("");
 
   useEffect(() => {
     if (prevPathRef.current !== pathname) {
@@ -151,6 +168,7 @@ export function StorefrontAiShell() {
       if (data) {
         const cfg = data as PublicAiConfig;
         setConfig(cfg);
+        welcomeRef.current = cfg.welcome_message ?? "";
         setMessages((prev) =>
           prev.length === 0 && cfg.welcome_message
             ? [
@@ -166,15 +184,65 @@ export function StorefrontAiShell() {
     });
   }, [isAdminOrAuth]);
 
+  const loadHistoryAndMessages = useCallback(
+    async (vid: string, sid: string) => {
+      if (!vid) return;
+      setLoadingHistory(true);
+      try {
+        const qs = new URLSearchParams({
+          visitorId: vid,
+          includeHistory: "1",
+        });
+        if (sid) qs.set("sessionId", sid);
+        const r = await fetch(`/api/ai/chat?${qs.toString()}`);
+        if (!r.ok) return;
+        const d = (await r.json()) as {
+          quota?: ChatQuota;
+          conversations?: ChatHistoryItem[];
+          messages?: Array<{
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            created_at: string;
+          }>;
+        };
+        if (d.quota) setQuota(d.quota);
+        if (Array.isArray(d.conversations)) {
+          setConversations(d.conversations);
+        }
+        if (Array.isArray(d.messages) && d.messages.length > 0) {
+          const restored: ChatMsg[] = d.messages.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            createdAt: m.created_at,
+          }));
+          setMessages([
+            ...(welcomeRef.current
+              ? [
+                  {
+                    id: "welcome",
+                    role: "assistant" as const,
+                    content: welcomeRef.current,
+                  },
+                ]
+              : []),
+            ...restored,
+          ]);
+        }
+      } catch {
+        // ignore network hiccups
+      } finally {
+        setLoadingHistory(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (isAdminOrAuth || !visitorId) return;
-    fetch(`/api/ai/chat?visitorId=${encodeURIComponent(visitorId)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { quota?: ChatQuota } | null) => {
-        if (d?.quota) setQuota(d.quota);
-      })
-      .catch(() => {});
-  }, [isAdminOrAuth, visitorId, authUser?.id]);
+    void loadHistoryAndMessages(visitorId, sessionId);
+  }, [isAdminOrAuth, visitorId, sessionId, authUser?.id, loadHistoryAndMessages]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -231,10 +299,12 @@ export function StorefrontAiShell() {
       return;
     }
 
+    const nowIso = new Date().toISOString();
     const userMsg: ChatMsg = {
       id: `u-${Date.now()}`,
       role: "user",
       content: trimmed,
+      createdAt: nowIso,
     };
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
@@ -317,10 +387,24 @@ export function StorefrontAiShell() {
             data.reply ||
             data.error ||
             "حدث خطأ غير متوقع، حاول مرة أخرى.",
+          createdAt: new Date().toISOString(),
           products: data.products,
           toolsUsed: data.toolsUsed,
         },
       ]);
+
+      if (res.ok && visitorId) {
+        fetch(
+          `/api/ai/chat?visitorId=${encodeURIComponent(visitorId)}&includeHistory=1`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: { conversations?: ChatHistoryItem[] } | null) => {
+            if (Array.isArray(d?.conversations)) {
+              setConversations(d.conversations);
+            }
+          })
+          .catch(() => {});
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -342,11 +426,7 @@ export function StorefrontAiShell() {
     setTimeout(() => setJustAddedId(null), 1400);
   }
 
-  function resetChat() {
-    if (sessionId) {
-      const supabase = createClient();
-      void supabase.rpc("mark_ai_session_cleared", { p_session_id: sessionId });
-    }
+  function startNewChat() {
     const newSess = `sess-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
     try {
       localStorage.setItem("elloll-ai-session", newSess);
@@ -354,6 +434,7 @@ export function StorefrontAiShell() {
       // ignore
     }
     setSessionId(newSess);
+    setHistoryOpen(false);
     setMessages(
       config?.welcome_message
         ? [{ id: "welcome", role: "assistant", content: config.welcome_message }]
@@ -361,9 +442,155 @@ export function StorefrontAiShell() {
     );
   }
 
+  function openConversation(targetSessionId: string) {
+    setHistoryOpen(false);
+    if (targetSessionId === sessionId) return;
+    try {
+      localStorage.setItem("elloll-ai-session", targetSessionId);
+    } catch {
+      // ignore
+    }
+    setMessages(
+      config?.welcome_message
+        ? [{ id: "welcome", role: "assistant", content: config.welcome_message }]
+        : [],
+    );
+    setSessionId(targetSessionId);
+  }
+
+  async function deleteHistoryItem(targetSessionId: string) {
+    if (!visitorId) return;
+    try {
+      const res = await fetch(
+        `/api/ai/chat?visitorId=${encodeURIComponent(visitorId)}&sessionId=${encodeURIComponent(targetSessionId)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) return;
+      setConversations((prev) =>
+        prev.filter((c) => c.session_id !== targetSessionId),
+      );
+      if (targetSessionId === sessionId) {
+        startNewChat();
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const chatBody = (
     <>
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+      {historyOpen ? (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-bold">
+                {locale === "ar"
+                  ? `سجل محادثاتك (${conversations.length})`
+                  : `Chat History (${conversations.length})`}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={startNewChat}
+                className="h-7 gap-1 px-2.5 text-xs"
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5" />
+                {locale === "ar" ? "محادثة جديدة" : "New chat"}
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => setHistoryOpen(false)}
+                className="h-7 w-7"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-2 overflow-y-auto p-3 sm:p-4">
+            {loadingHistory && conversations.length === 0 ? (
+              <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+                <Loader2 className="me-2 h-4 w-4 animate-spin text-amber-500" />
+                {locale === "ar" ? "جاري تحميل السجل..." : "Loading history..."}
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
+                {locale === "ar"
+                  ? "لا توجد محادثات سابقة بعد."
+                  : "No previous conversations yet."}
+              </div>
+            ) : (
+              conversations.map((conv) => {
+                const isActive = conv.session_id === sessionId;
+                const dt = new Date(conv.last_message_at);
+                const formattedDate = dt.toLocaleString(
+                  locale === "ar" ? "ar-EG" : "en-US",
+                  {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  },
+                );
+                return (
+                  <div
+                    key={conv.id}
+                    className={`flex items-center justify-between gap-2 rounded-xl border p-3 transition-colors ${
+                      isActive
+                        ? "border-amber-500/60 bg-amber-500/10"
+                        : "border-border bg-card hover:border-amber-500/40"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openConversation(conv.session_id)}
+                      className="min-w-0 flex-1 text-start"
+                    >
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {conv.preview ||
+                          (locale === "ar" ? "محادثة متجر elloll" : "elloll store chat")}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formattedDate}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {conv.message_count}{" "}
+                          {locale === "ar" ? "رسائل" : "messages"}
+                        </span>
+                        {isActive && (
+                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500">
+                            {locale === "ar" ? "الحالية" : "Active"}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => void deleteHistoryItem(conv.session_id)}
+                      title={locale === "ar" ? "حذف من السجل" : "Delete from history"}
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.map((msg) => {
           const isUser = msg.role === "user";
           return (
@@ -381,6 +608,19 @@ export function StorefrontAiShell() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.createdAt && (
+                    <p
+                      dir="ltr"
+                      className={`mt-1 text-[10px] opacity-65 ${
+                        isUser ? "text-primary-foreground/80" : "text-muted-foreground"
+                      }`}
+                    >
+                      {new Date(msg.createdAt).toLocaleTimeString(
+                        locale === "ar" ? "ar-EG" : "en-US",
+                        { hour: "2-digit", minute: "2-digit" },
+                      )}
+                    </p>
+                  )}
                   {msg.toolsUsed && msg.toolsUsed.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1 border-t border-border/50 pt-1.5">
                       {msg.toolsUsed.map((tool) => (
@@ -505,6 +745,7 @@ export function StorefrontAiShell() {
         )}
         <div ref={endRef} />
       </div>
+      )}
 
       {/* Quick prompts */}
       {messages.length <= 2 && (
@@ -631,13 +872,28 @@ export function StorefrontAiShell() {
             <ModeSwitcher />
             <Button
               type="button"
+              variant={historyOpen ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setHistoryOpen((v) => !v)}
+              title={locale === "ar" ? "سجل المحادثات" : "Chat history"}
+              className="relative h-8 w-8 text-muted-foreground sm:h-9 sm:w-9"
+            >
+              <History className="h-4 w-4" />
+              {conversations.length > 0 && (
+                <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-black">
+                  {conversations.length}
+                </span>
+              )}
+            </Button>
+            <Button
+              type="button"
               variant="ghost"
               size="icon"
-              onClick={resetChat}
+              onClick={startNewChat}
               title={locale === "ar" ? "محادثة جديدة" : "New chat"}
               className="h-8 w-8 text-muted-foreground sm:h-9 sm:w-9"
             >
-              <Trash2 className="h-4 w-4" />
+              <MessageSquarePlus className="h-4 w-4" />
             </Button>
             <div className="hidden items-center gap-1 sm:flex">
               <LanguageSwitcher />
@@ -714,13 +970,28 @@ export function StorefrontAiShell() {
               </Button>
               <Button
                 type="button"
+                variant={historyOpen ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => setHistoryOpen((v) => !v)}
+                title={locale === "ar" ? "سجل المحادثات" : "Chat history"}
+                className="relative h-8 w-8 text-muted-foreground"
+              >
+                <History className="h-4 w-4" />
+                {conversations.length > 0 && (
+                  <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-black">
+                    {conversations.length}
+                  </span>
+                )}
+              </Button>
+              <Button
+                type="button"
                 variant="ghost"
                 size="icon"
-                onClick={resetChat}
+                onClick={startNewChat}
                 title={locale === "ar" ? "محادثة جديدة" : "New chat"}
                 className="h-8 w-8 text-muted-foreground"
               >
-                <Trash2 className="h-4 w-4" />
+                <MessageSquarePlus className="h-4 w-4" />
               </Button>
               <Button
                 type="button"

@@ -401,13 +401,32 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const visitorId = searchParams.get("visitorId") || "anonymous";
+    const sessionId = searchParams.get("sessionId")?.trim() || "";
+    const includeHistory = searchParams.get("includeHistory") === "1";
+
     const supabase = await createClient();
     const {
       data: { user: authUser },
     } = await supabase.auth.getUser();
-    const { data: quota } = await supabase.rpc("check_ai_chat_quota", {
-      p_visitor_id: visitorId,
-    });
+
+    const [{ data: quota }, convsRes, msgsRes] = await Promise.all([
+      supabase.rpc("check_ai_chat_quota", {
+        p_visitor_id: visitorId,
+      }),
+      includeHistory
+        ? supabase.rpc("get_customer_ai_conversations", {
+            p_visitor_id: visitorId,
+            p_limit: 25,
+          })
+        : Promise.resolve({ data: null }),
+      sessionId
+        ? supabase.rpc("get_customer_ai_messages", {
+            p_session_id: sessionId,
+            p_visitor_id: visitorId,
+          })
+        : Promise.resolve({ data: null }),
+    ]);
+
     return NextResponse.json({
       quota: quota ?? {
         daily_limit: 20,
@@ -418,6 +437,12 @@ export async function GET(req: Request) {
         is_authenticated: Boolean(authUser),
         require_auth: false,
       },
+      ...(includeHistory
+        ? { conversations: Array.isArray(convsRes.data) ? convsRes.data : [] }
+        : {}),
+      ...(sessionId
+        ? { messages: Array.isArray(msgsRes.data) ? msgsRes.data : [] }
+        : {}),
     });
   } catch {
     return NextResponse.json({
@@ -431,6 +456,35 @@ export async function GET(req: Request) {
         require_auth: false,
       },
     });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const visitorId = searchParams.get("visitorId") || "anonymous";
+    const sessionId = searchParams.get("sessionId")?.trim() || "";
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "sessionId is required" },
+        { status: 400 },
+      );
+    }
+
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("hide_customer_ai_conversation", {
+      p_session_id: sessionId,
+      p_visitor_id: visitorId,
+    });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: Boolean(data) });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Delete error" },
+      { status: 500 },
+    );
   }
 }
 

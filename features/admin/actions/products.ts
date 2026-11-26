@@ -28,10 +28,20 @@ import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
  * presence check). Rules: name required; price a finite number >= 0; stock an
  * integer >= 0; status `active` or `inactive` (default `active`).
  */
+function sanitizeProductName(raw: unknown): string {
+  return String(raw ?? "")
+    .replace(
+      /^(?:نبذة باستخدام الذكاء الاصطناعي|ملخص باستخدام الذكاء الاصطناعي|AI Overview)\s*[:\-–—]?\s*/i,
+      "",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function parseProductForm(
   formData: FormData,
 ): { input?: ProductInput; error?: string } {
-  const name = String(formData.get("name") ?? "").trim();
+  const name = sanitizeProductName(formData.get("name"));
   const description = String(formData.get("description") ?? "").trim() || null;
   const priceRaw = String(formData.get("price") ?? "").trim();
   const stockRaw = String(formData.get("stock_quantity") ?? "").trim();
