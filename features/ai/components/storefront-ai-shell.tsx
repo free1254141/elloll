@@ -30,6 +30,11 @@ import { ModeSwitcher, useStorefrontMode } from "@/components/mode-switcher";
 import { CartBadge } from "@/features/cart/components/cart-badge";
 import { AccountButton } from "@/components/account-button";
 import { Button } from "@/components/ui/button";
+import {
+  ExportableTable,
+  FormattedChatMessage,
+} from "@/features/ai/components/formatted-chat-message";
+import type { ChatVisuals } from "@/features/ai/lib/chat-format";
 import type { Product } from "@/features/catalog/lib/catalog";
 
 interface PublicAiConfig {
@@ -56,7 +61,10 @@ interface ChatMsg {
   content: string;
   createdAt?: string;
   products?: Product[];
+  visuals?: ChatVisuals;
+  suggestedButtons?: string[];
   toolsUsed?: string[];
+  latencyMs?: number;
 }
 
 interface ChatHistoryItem {
@@ -98,7 +106,7 @@ function getOrCreateId(key: string, prefix: string): string {
 export function StorefrontAiShell() {
   const pathname = usePathname();
   const router = useRouter();
-  const { locale, setLocale } = useLanguage();
+  const { locale, setLocale, dir } = useLanguage();
   const { setTheme } = useTheme();
   const { user: authUser, openAuthModal } = useCustomerAuth();
   const isAdminOrAuth =
@@ -335,7 +343,10 @@ export function StorefrontAiShell() {
         reply?: string;
         actions?: ClientAction[];
         products?: Product[];
+        visuals?: ChatVisuals;
+        suggestedButtons?: string[];
         toolsUsed?: string[];
+        latencyMs?: number;
         quota?: ChatQuota;
         rateLimited?: boolean;
         requireAuth?: boolean;
@@ -389,7 +400,10 @@ export function StorefrontAiShell() {
             "حدث خطأ غير متوقع، حاول مرة أخرى.",
           createdAt: new Date().toISOString(),
           products: data.products,
+          visuals: data.visuals,
+          suggestedButtons: data.suggestedButtons,
           toolsUsed: data.toolsUsed,
+          latencyMs: data.latencyMs,
         },
       ]);
 
@@ -423,6 +437,12 @@ export function StorefrontAiShell() {
     addItem(p, 1);
     setJustAddedId(p.id);
     setTimeout(() => setJustAddedId(null), 1400);
+  }
+
+  function handleAddBundle(bundle: Product[]) {
+    for (const p of bundle) {
+      addItem(p, 1);
+    }
   }
 
   function startNewChat() {
@@ -589,9 +609,14 @@ export function StorefrontAiShell() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
-        {messages.map((msg) => {
+        <div dir={dir} className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
+        {messages.map((msg, msgIdx) => {
           const isUser = msg.role === "user";
+          const isLatestAssistant = !isUser && msgIdx === messages.length - 1;
+          const hasInlineOrVisualTable =
+            (msg.visuals?.tables?.length ?? 0) > 0 ||
+            /\|[\s:\-]{2,}\|/.test(msg.content);
+
           return (
             <div key={msg.id} className="space-y-3">
               <div
@@ -599,118 +624,177 @@ export function StorefrontAiShell() {
                   isUser ? "items-start" : "items-end"
                 }`}
               >
-                <div
-                  className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed sm:max-w-[75%] ${
-                    isUser
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-card text-foreground shadow-sm"
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                  {msg.createdAt && (
-                    <p
-                      dir="ltr"
-                      className={`mt-1 text-[10px] opacity-65 ${
-                        isUser ? "text-primary-foreground/80" : "text-muted-foreground"
-                      }`}
-                    >
-                      {new Date(msg.createdAt).toLocaleTimeString(
-                        locale === "ar" ? "ar-EG" : "en-US",
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
-                    </p>
-                  )}
-                  {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1 border-t border-border/50 pt-1.5">
-                      {msg.toolsUsed.map((tool) => (
-                        <span
-                          key={tool}
-                          className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-500"
-                        >
-                          ⚡ {tool}
+                {isUser ? (
+                  <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground shadow-sm sm:max-w-[70%]">
+                    <p className="whitespace-pre-wrap text-start">{msg.content}</p>
+                    {msg.createdAt && (
+                      <p
+                        dir="ltr"
+                        className="mt-1 text-[10px] text-primary-foreground/80 opacity-75"
+                      >
+                        {new Date(msg.createdAt).toLocaleTimeString(
+                          locale === "ar" ? "ar-EG" : "en-US",
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[96%] rounded-2xl border border-border bg-card px-4 py-3.5 text-sm leading-relaxed text-foreground shadow-sm sm:max-w-[88%]">
+                    <div className="mb-2 flex items-center justify-between gap-2 border-b border-border/50 pb-1.5 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5 font-bold text-amber-500">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>{config.bot_name}</span>
+                      </span>
+                      {msg.createdAt && (
+                        <span dir="ltr" className="font-mono text-[10px] opacity-75">
+                          {new Date(msg.createdAt).toLocaleTimeString(
+                            locale === "ar" ? "ar-EG" : "en-US",
+                            { hour: "2-digit", minute: "2-digit" },
+                          )}
                         </span>
-                      ))}
+                      )}
                     </div>
-                  )}
-                </div>
+
+                    <FormattedChatMessage
+                      content={msg.content}
+                      visuals={msg.visuals}
+                      suggestedButtons={msg.suggestedButtons}
+                      showSuggestedButtons={isLatestAssistant && !busy}
+                      toolsUsed={msg.toolsUsed}
+                      latencyMs={msg.latencyMs}
+                      locale={locale}
+                      dir={dir}
+                      onQuickReply={(txt) => void sendText(txt)}
+                      onAddProduct={handleAddProduct}
+                      onAddBundle={handleAddBundle}
+                      onCloseDrawer={() => {
+                        if (!isChatOnly) setExpanded(false);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               {msg.products && msg.products.length > 0 && (
-                <div
-                  className={
-                    isFullViewport
-                      ? "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-                      : "flex gap-3 overflow-x-auto pb-2 pt-1"
-                  }
-                >
-                  {msg.products.map((p) => {
-                    const added = justAddedId === p.id;
-                    return (
-                      <div
-                        key={p.id}
-                        className={`flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-amber-500/40 ${
-                          isFullViewport ? "w-full" : "w-48 shrink-0"
-                        }`}
-                      >
-                        <div className="relative aspect-square overflow-hidden bg-muted">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={p.image_url}
-                            alt={p.name}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
+                <div className="space-y-2.5">
+                  <div
+                    className={
+                      isFullViewport
+                        ? "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+                        : "flex gap-3 overflow-x-auto pb-2 pt-1"
+                    }
+                  >
+                    {msg.products.map((p) => {
+                      const added = justAddedId === p.id;
+                      return (
+                        <div
+                          key={p.id}
+                          className={`flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-amber-500/40 ${
+                            isFullViewport ? "w-full" : "w-48 shrink-0"
+                          }`}
+                        >
+                          <Link
+                            href={`/products/${p.id}`}
+                            onClick={() => {
+                              if (!isChatOnly) setExpanded(false);
+                            }}
+                            className="relative aspect-square overflow-hidden bg-muted"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={p.image_url}
+                              alt={p.name}
+                              className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                            />
+                          </Link>
 
-                        <div className="flex flex-1 flex-col gap-1.5 p-3">
-                          <p className="line-clamp-2 text-xs font-semibold leading-snug">
-                            {p.name}
-                          </p>
-                          <p className="mt-auto font-display text-sm font-bold text-amber-500 tabular-nums">
-                            {priceFmt.format(p.price)}
-                          </p>
-                          <div className="mt-1 grid grid-cols-2 gap-1.5">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              asChild
-                              className="h-7 px-2 text-[11px]"
+                          <div className="flex flex-1 flex-col gap-1.5 p-3">
+                            <p className="line-clamp-2 text-xs font-semibold leading-snug">
+                              {p.name}
+                            </p>
+                            <p
+                              dir="ltr"
+                              className="mt-auto font-display text-sm font-bold tabular-nums text-amber-500"
                             >
-                              <Link
-                                href={`/products/${p.id}`}
-                                onClick={() => {
-                                  if (!isChatOnly) setExpanded(false);
-                                }}
+                              {priceFmt.format(p.price)}
+                            </p>
+                            <div className="mt-1 grid grid-cols-2 gap-1.5">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                asChild
+                                className="h-7 px-2 text-[11px]"
                               >
-                                <Eye className="h-3 w-3" />
-                                {locale === "ar" ? "التفاصيل" : "View"}
-                              </Link>
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => handleAddProduct(p)}
-                              className={`h-7 gap-1 px-2 text-[11px] ${
-                                added ? "bg-emerald-600 text-white" : ""
-                              }`}
-                            >
-                              {added ? (
-                                <>
-                                  <Check className="h-3 w-3" />
-                                  {locale === "ar" ? "تمت" : "Added"}
-                                </>
-                              ) : (
-                                <>
-                                  <ShoppingCart className="h-3 w-3" />
-                                  {locale === "ar" ? "أضف" : "Add"}
-                                </>
-                              )}
-                            </Button>
+                                <Link
+                                  href={`/products/${p.id}`}
+                                  onClick={() => {
+                                    if (!isChatOnly) setExpanded(false);
+                                  }}
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  {locale === "ar" ? "التفاصيل" : "View"}
+                                </Link>
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleAddProduct(p)}
+                                className={`h-7 gap-1 px-2 text-[11px] ${
+                                  added ? "bg-emerald-600 text-white" : ""
+                                }`}
+                              >
+                                {added ? (
+                                  <>
+                                    <Check className="h-3 w-3" />
+                                    {locale === "ar" ? "تمت" : "Added"}
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShoppingCart className="h-3 w-3" />
+                                    {locale === "ar" ? "أضف" : "Add"}
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+
+                  {msg.products.length >= 2 && !hasInlineOrVisualTable && (
+                    <details className="group text-xs text-muted-foreground">
+                      <summary className="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 font-bold transition-colors hover:border-amber-500/40 hover:text-foreground">
+                        <span>
+                          {locale === "ar"
+                            ? `📊 عرض جدول المنتجات الكامل وتصدير إكسيل (${msg.products.length})`
+                            : `📊 Show full products table & export Excel (${msg.products.length})`}
+                        </span>
+                      </summary>
+                      <div className="mt-2">
+                        <ExportableTable
+                          title={
+                            locale === "ar"
+                              ? "جدول المنتجات المعروضة"
+                              : "Displayed Products Table"
+                          }
+                          headers={
+                            locale === "ar"
+                              ? ["المنتج", "السعر (ج.م)", "الوصف"]
+                              : ["Product", "Price (EGP)", "Description"]
+                          }
+                          rows={msg.products.map((p) => [
+                            p.name,
+                            `${Number(p.price)} ${locale === "ar" ? "ج.م" : "EGP"}`,
+                            (p.description || "").slice(0, 70),
+                          ])}
+                          locale={locale}
+                        />
                       </div>
-                    );
-                  })}
+                    </details>
+                  )}
                 </div>
               )}
             </div>

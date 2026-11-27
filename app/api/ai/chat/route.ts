@@ -13,6 +13,18 @@ import {
 import { placeOrder, type PaymentMethod } from "@/features/checkout/lib/checkout";
 import type { Product } from "@/features/catalog/lib/catalog";
 import { revalidateCatalogCache } from "@/features/catalog/lib/catalog-cache";
+import {
+  EGYPT_GOVERNORATES,
+  SHIPPING_ZONES,
+  getGovernorateRate,
+  type ShippingZoneId,
+} from "@/features/shipping/lib/shipping";
+import { getCachedShippingSettings } from "@/features/shipping/lib/shipping-cache";
+import type {
+  ChatVisuals,
+  OutfitCombo,
+  OutfitComboItem,
+} from "@/features/ai/lib/chat-format";
 
 type ClientAction =
   | { type: "ADD_TO_CART"; product: Product; quantity: number }
@@ -64,7 +76,7 @@ const TOOLS = [
     function: {
       name: "search_products",
       description:
-        "Search and filter products in the store by keyword, category slug, price range, availability, and sort order.",
+        "Search and filter products in the store by keyword, category slug, min/max EGP price, price range, and sort order. Always check available categories or pass category_slug for broad Egyptian terms like كوتشي, بنطلون, هودي.",
       parameters: {
         type: "object",
         properties: {
@@ -74,8 +86,98 @@ const TOOLS = [
             type: "string",
             enum: ["all", "under-500", "500-1500", "over-1500"],
           },
-          in_stock_only: { type: "boolean" },
+          min_price: { type: "number", description: "Minimum price in EGP" },
+          max_price: { type: "number", description: "Maximum price in EGP" },
           sort: { type: "string", enum: ["newest", "price-asc", "price-desc"] },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "build_outfit_bundle",
+      description:
+        "Build 1 to 3 complete visual outfit combinations (e.g., pants + sneakers, hoodie + pants) within an optional EGP budget, displaying interactive outfit combo cards with 1-click Add Full Outfit to Cart button and a comparison table.",
+      parameters: {
+        type: "object",
+        properties: {
+          budget_egp: { type: "number", description: "Customer total budget in EGP" },
+          combos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string", description: "Outfit combination title in Arabic or user language" },
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      product_id: { type: "string" },
+                      role_label: { type: "string", description: "Short label like بنطلون or كوتشي or هودي" },
+                    },
+                    required: ["product_id"],
+                  },
+                },
+              },
+              required: ["title", "items"],
+            },
+          },
+        },
+        required: ["combos"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "compare_products",
+      description:
+        "Display an interactive side-by-side comparison widget and exportable table for 2 to 6 products by ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          product_ids: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["product_ids"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_shipping_rates",
+      description:
+        "Display an interactive shipping rates and delivery timeframe table across Egypt's 27 governorates and 4 shipping zones, including the free shipping threshold.",
+      parameters: {
+        type: "object",
+        properties: {
+          governorate: {
+            type: "string",
+            description: "Optional Egyptian governorate name in Arabic or English",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_size_chart",
+      description:
+        "Display interactive sizing chart tables for clothing (S to 3XL) and/or shoes & sneakers (40 to 46 EU).",
+      parameters: {
+        type: "object",
+        properties: {
+          type: {
+            type: "string",
+            enum: ["clothing", "shoes", "all"],
+          },
         },
       },
     },
@@ -353,6 +455,81 @@ const TOOLS = [
   },
 ];
 
+function resolveCategorySlugFromText(text: string): string | undefined {
+  const lower = text.toLowerCase();
+  if (/كوتشي|حذاء|شوز|سنيكرز|أحذية|جزمة|sneaker|shoe/i.test(lower)) {
+    return "shoes-sneakers";
+  }
+  if (/بنطلون|بناطيل|جينز|سويت بانت|شروال|جوجر|jogger|jeans|pants|sweatpant/i.test(lower)) {
+    return "pants-jeans";
+  }
+  if (/هودي|هوديز|سويت شيرت|بلوفر|hoodie|sweatshirt|pullover/i.test(lower)) {
+    return "hoodies-sweatshirts";
+  }
+  if (/تيشيرت|قميص|بدي|tshirt|t-shirt|shirt/i.test(lower)) {
+    return "tshirts-tops";
+  }
+  if (/طقم رياضي|ترينج|أطقم رياضية|tracksuit/i.test(lower)) {
+    return "tracksuits";
+  }
+  return undefined;
+}
+
+const ZONE_ETA_AR: Record<ShippingZoneId, string> = {
+  cairo_giza: "1 – 2 يوم عمل",
+  alex_delta_canal: "2 – 3 أيام عمل",
+  upper_egypt: "3 – 4 أيام عمل",
+  frontier: "3 – 5 أيام عمل",
+};
+
+function buildSuggestedButtons(executedTools: string[]): string[] {
+  const set = new Set(executedTools);
+  if (set.has("build_outfit_bundle")) {
+    return [
+      "أضف أول طقم للسلة",
+      "قارن بين التركيبات المقترحة",
+      "أسعار الشحن لمحافظتي",
+      "اعرض جدول المقاسات",
+    ];
+  }
+  if (set.has("compare_products")) {
+    return [
+      "أضف أرخص منتج للسلة",
+      "رشّح لي طقم متناسق معاه",
+      "اعرض جدول المقاسات",
+      "أسعار الشحن لمحافظتي",
+    ];
+  }
+  if (set.has("get_shipping_rates")) {
+    return [
+      "تصفح أحدث المنتجات",
+      "عملّي طقم في حدود 1000 ج.م",
+      "اعرض جدول المقاسات",
+      "محتاج أتتبع طلبي",
+    ];
+  }
+  if (set.has("get_size_chart")) {
+    return [
+      "تصفح الهوديز والسويت شيرتات",
+      "تصفح البنطلونات والسويت بانتس",
+      "أسعار الشحن لكل مصر",
+    ];
+  }
+  if (set.has("search_products") || set.has("get_featured_products")) {
+    return [
+      "قارن بين أفضل المنتجات دي",
+      "عملّي طقم كامل بـ 1000 ج.م",
+      "اعرض جدول المقاسات",
+      "أسعار الشحن لمحافظتي",
+    ];
+  }
+  return [
+    "عملّي طقم بنطلون وكوتشي بـ 900 ج.م",
+    "تصفح أحدث المنتجات",
+    "أسعار الشحن لكل محافظات مصر",
+  ];
+}
+
 function parseDsmlToolCalls(content: string): Array<{
   id: string;
   type: "function";
@@ -607,7 +784,19 @@ export async function POST(req: Request) {
       ? `\n[Customer Auth Status]: Signed in (${authUser.email ?? authUser.id}). Allowed to place orders.`
       : `\n[Customer Auth Status]: Guest (NOT signed in). Before confirming/placing an order via place_order, OR if the customer asks to sign in/register, you MUST call open_auth_dialog so the login/signup dialog opens in the browser.`;
 
-    const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${cartContext}${authContext}`;
+    const startedAt = Date.now();
+    const formattingGuidance = `
+
+[Formatting & Interactive Display Rules]:
+- Format replies using clean Markdown: use ### for section headings, bullet lists (- ), and **bold** ONLY around short phrases/names (never wrap prices+text inconsistently or output messy unclosed **).
+- All products in the store are ALWAYS available in unlimited stock — NEVER mention stock counts, limited pieces, or out-of-stock warnings.
+- Whenever the user asks for an outfit, combo, or combined budget (e.g., "بنطلون وكوتشي ب 1200"), you MUST search BOTH categories first (calling search_products for each category separately), then call build_outfit_bundle with 2–3 curated combos (each containing real product IDs from search results) so interactive Outfit Cards & Comparison Table render!
+- Whenever the user asks to compare products, call compare_products with their exact product IDs.
+- Whenever the user asks about shipping fees or delivery duration across Egypt, call get_shipping_rates.
+- Whenever the user asks about sizes or measurements, call get_size_chart.
+- When listing 3+ individual products outside a bundle, also include a clean Markdown table | المنتج | السعر | الميزة | in addition to concise advice.`;
+
+    const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${cartContext}${authContext}${formattingGuidance}`;
 
     const deepseekMessages: Array<Record<string, unknown>> = [
       { role: "system", content: systemPrompt },
@@ -616,7 +805,20 @@ export async function POST(req: Request) {
 
     const clientActions: ClientAction[] = [];
     const previewProducts: Product[] = [];
+    const visuals: ChatVisuals = { tables: [], outfits: [] };
     const executedTools: string[] = [];
+
+    const addPreviewProducts = (items: Product[]) => {
+      for (const p of items) {
+        if (
+          p &&
+          !previewProducts.some((x) => x.id === p.id) &&
+          previewProducts.length < 16
+        ) {
+          previewProducts.push(p);
+        }
+      }
+    };
 
     let finalReply = "";
 
@@ -693,32 +895,281 @@ export async function POST(req: Request) {
         if (fnName === "get_featured_products") {
           const limit = Math.min(12, Math.max(1, Number(args.limit ?? 8)));
           const prods = await getFeaturedProducts(supabase, limit);
-          previewProducts.splice(0, previewProducts.length, ...prods);
+          addPreviewProducts(prods);
           toolResult = prods;
         } else if (fnName === "list_categories") {
           toolResult = await getFeaturedCategories(supabase);
         } else if (fnName === "search_products") {
           const cats = await getFeaturedCategories(supabase);
-          const catSlug = args.category_slug as string | undefined;
+          const rawQuery =
+            typeof args.query === "string" ? args.query.trim() : "";
+          const catSlug =
+            (args.category_slug as string | undefined) ||
+            resolveCategorySlugFromText(rawQuery);
           const matchedCat = catSlug
             ? cats.find((c) => c.slug === catSlug)
             : undefined;
-          const res = await searchCatalog(supabase, {
-            q: args.query as string | undefined,
+          let res = await searchCatalog(supabase, {
+            q: rawQuery || undefined,
             categoryId: matchedCat?.id,
             priceRange: (args.price_range as PriceRangeKey) || "all",
-            inStockOnly: Boolean(args.in_stock_only),
             sort: (args.sort as CatalogSort) || "newest",
-            pageSize: 8,
+            pageSize: 20,
           });
-          previewProducts.splice(0, previewProducts.length, ...res.products);
-          toolResult = res.products;
+          // Fall back to category-wide results when colloquial Arabic term doesn't literally appear in product name
+          if (res.products.length === 0 && matchedCat && rawQuery) {
+            res = await searchCatalog(supabase, {
+              categoryId: matchedCat.id,
+              priceRange: (args.price_range as PriceRangeKey) || "all",
+              sort: (args.sort as CatalogSort) || "newest",
+              pageSize: 20,
+            });
+          }
+          const minPrice =
+            typeof args.min_price === "number" && Number.isFinite(args.min_price)
+              ? args.min_price
+              : null;
+          const maxPrice =
+            typeof args.max_price === "number" && Number.isFinite(args.max_price)
+              ? args.max_price
+              : null;
+          const filtered = res.products.filter((p) => {
+            if (minPrice !== null && Number(p.price) < minPrice) return false;
+            if (maxPrice !== null && Number(p.price) > maxPrice) return false;
+            return true;
+          });
+          addPreviewProducts(filtered);
+          toolResult = filtered;
+        } else if (fnName === "build_outfit_bundle") {
+          const budget =
+            typeof args.budget_egp === "number" && Number.isFinite(args.budget_egp)
+              ? args.budget_egp
+              : undefined;
+          const rawCombos = Array.isArray(args.combos) ? args.combos : [];
+          const builtCombos: OutfitCombo[] = [];
+
+          for (const rawCombo of rawCombos.slice(0, 4)) {
+            const comboObj = (rawCombo ?? {}) as {
+              title?: string;
+              items?: Array<{ product_id?: string; role_label?: string }>;
+            };
+            const rawItems = Array.isArray(comboObj.items) ? comboObj.items : [];
+            const resolvedItems: OutfitComboItem[] = [];
+            for (const it of rawItems) {
+              const pid = String(it?.product_id ?? "").trim();
+              if (!pid) continue;
+              const prod = await getProductById(supabase, pid);
+              if (prod) {
+                resolvedItems.push({
+                  product: prod,
+                  roleLabel: it?.role_label ? String(it.role_label) : undefined,
+                });
+              }
+            }
+            if (resolvedItems.length > 0) {
+              const totalEgp = Number(
+                resolvedItems
+                  .reduce((sum, x) => sum + Number(x.product.price), 0)
+                  .toFixed(2),
+              );
+              const remainingEgp =
+                budget !== undefined ? Number((budget - totalEgp).toFixed(2)) : undefined;
+              builtCombos.push({
+                title: String(comboObj.title || "تركيبة مقترحة"),
+                items: resolvedItems,
+                totalEgp,
+                budgetEgp: budget,
+                remainingEgp,
+                withinBudget: budget !== undefined ? totalEgp <= budget : true,
+              });
+              addPreviewProducts(resolvedItems.map((x) => x.product));
+            }
+          }
+
+          if (builtCombos.length > 0) {
+            visuals.outfits = [...(visuals.outfits ?? []), ...builtCombos];
+            visuals.tables = [
+              ...(visuals.tables ?? []),
+              {
+                id: `outfit-summary-${Date.now()}`,
+                title: "ملخص ومقارنة التركيبات",
+                headers: [
+                  "التركيبة",
+                  "القطع المختارة",
+                  "الإجمالي",
+                  ...(budget !== undefined ? ["حالة الميزانية"] : []),
+                ],
+                rows: builtCombos.map((c) => [
+                  c.title,
+                  c.items.map((x) => x.product.name).join(" + "),
+                  `${c.totalEgp} ج.م`,
+                  ...(budget !== undefined
+                    ? [
+                        c.withinBudget
+                          ? `داخل الميزانية (متبقي ${Math.max(0, c.remainingEgp ?? 0)} ج.م)`
+                          : `أعلى من الميزانية بـ ${Math.abs(c.remainingEgp ?? 0)} ج.م`,
+                      ]
+                    : []),
+                ]),
+              },
+            ];
+          }
+          toolResult = {
+            ok: builtCombos.length > 0,
+            combos: builtCombos.map((c) => ({
+              title: c.title,
+              total_egp: c.totalEgp,
+              remaining_egp: c.remainingEgp,
+              within_budget: c.withinBudget,
+              items: c.items.map((x) => ({
+                id: x.product.id,
+                name: x.product.name,
+                price: x.product.price,
+              })),
+            })),
+          };
+        } else if (fnName === "compare_products") {
+          const ids = Array.isArray(args.product_ids)
+            ? args.product_ids.map((x) => String(x).trim()).filter(Boolean).slice(0, 6)
+            : [];
+          const cats = await getFeaturedCategories(supabase);
+          const compared: Array<Product & { categoryName?: string }> = [];
+          for (const pid of ids) {
+            const p = await getProductById(supabase, pid);
+            if (p) {
+              const cat = cats.find((c) => c.id === p.category_id);
+              compared.push({ ...p, categoryName: cat?.name });
+            }
+          }
+          if (compared.length > 0) {
+            addPreviewProducts(compared);
+            const title = String(args.title || "مقارنة المنتجات");
+            visuals.comparison = { title, products: compared };
+            visuals.tables = [
+              ...(visuals.tables ?? []),
+              {
+                id: `compare-${Date.now()}`,
+                title,
+                headers: ["المنتج", "القسم", "السعر", "الوصف"],
+                rows: compared.map((p) => [
+                  p.name,
+                  p.categoryName || "elloll",
+                  `${Number(p.price)} ج.م`,
+                  (p.description || "").slice(0, 75),
+                ]),
+              },
+            ];
+          }
+          toolResult = { ok: compared.length > 0, products: compared };
+        } else if (fnName === "get_shipping_rates") {
+          const settings = await getCachedShippingSettings();
+          const queryGov =
+            typeof args.governorate === "string"
+              ? args.governorate.trim().toLowerCase()
+              : "";
+          const matchedGovs = queryGov
+            ? EGYPT_GOVERNORATES.filter(
+                (g) =>
+                  g.nameAr.includes(queryGov) ||
+                  g.nameEn.toLowerCase().includes(queryGov),
+              )
+            : [];
+          if (matchedGovs.length > 0) {
+            visuals.tables = [
+              ...(visuals.tables ?? []),
+              {
+                id: `shipping-gov-${Date.now()}`,
+                title: "أسعار الشحن حسب المحافظة",
+                headers: ["المحافظة", "رسوم الشحن", "مدة التوصيل", "الشحن المجاني"],
+                rows: matchedGovs.map((g) => {
+                  const fee = getGovernorateRate(settings, g.code);
+                  return [
+                    g.nameAr,
+                    `${fee} ج.م`,
+                    ZONE_ETA_AR[g.zone],
+                    `فوق ${settings.free_shipping_threshold} ج.م مجاني`,
+                  ];
+                }),
+              },
+            ];
+            toolResult = {
+              free_shipping_threshold: settings.free_shipping_threshold,
+              governorates: matchedGovs.map((g) => ({
+                name_ar: g.nameAr,
+                fee_egp: getGovernorateRate(settings, g.code),
+                eta_ar: ZONE_ETA_AR[g.zone],
+              })),
+            };
+          } else {
+            visuals.tables = [
+              ...(visuals.tables ?? []),
+              {
+                id: `shipping-zones-${Date.now()}`,
+                title: "أسعار الشحن لجميع مناطق مصر (27 محافظة)",
+                headers: ["المنطقة", "رسوم الشحن", "مدة التوصيل", "الشحن المجاني"],
+                rows: SHIPPING_ZONES.map((z) => [
+                  z.nameAr,
+                  `${settings.zone_rates[z.id] ?? z.defaultRate} ج.م`,
+                  ZONE_ETA_AR[z.id],
+                  `فوق ${settings.free_shipping_threshold} ج.م مجاني`,
+                ]),
+              },
+            ];
+            toolResult = {
+              free_shipping_threshold: settings.free_shipping_threshold,
+              zones: SHIPPING_ZONES.map((z) => ({
+                name_ar: z.nameAr,
+                fee_egp: settings.zone_rates[z.id] ?? z.defaultRate,
+                eta_ar: ZONE_ETA_AR[z.id],
+              })),
+            };
+          }
+        } else if (fnName === "get_size_chart") {
+          const chartType = String(args.type || "all");
+          if (chartType === "clothing" || chartType === "all") {
+            visuals.tables = [
+              ...(visuals.tables ?? []),
+              {
+                id: `size-clothing-${Date.now()}`,
+                title: "دليل مقاسات الملابس (هوديز وسويت شيرتات)",
+                headers: ["المقاس", "عرض الصدر", "الطول الكلي", "الوزن المناسب"],
+                rows: [
+                  ["S", "52 سم", "67 سم", "55 – 65 كجم"],
+                  ["M", "55 سم", "69 سم", "65 – 75 كجم"],
+                  ["L", "58 سم", "72 سم", "75 – 85 كجم"],
+                  ["XL", "61 سم", "74 سم", "85 – 95 كجم"],
+                  ["2XL", "64 سم", "76 سم", "95 – 108 كجم"],
+                  ["3XL", "67 سم", "78 سم", "108 – 120 كجم"],
+                ],
+              },
+            ];
+          }
+          if (chartType === "shoes" || chartType === "all") {
+            visuals.tables = [
+              ...(visuals.tables ?? []),
+              {
+                id: `size-shoes-${Date.now()}`,
+                title: "دليل مقاسات الأحذية والسنيكرز (EU)",
+                headers: ["المقاس (EU)", "طول القدم الداخلي"],
+                rows: [
+                  ["40", "25.0 سم"],
+                  ["41", "25.5 سم"],
+                  ["42", "26.5 سم"],
+                  ["43", "27.0 سم"],
+                  ["44", "28.0 سم"],
+                  ["45", "28.5 سم"],
+                  ["46", "29.5 سم"],
+                ],
+              },
+            ];
+          }
+          toolResult = { ok: true, displayed: chartType };
         } else if (fnName === "get_product_details") {
           const prod = await getProductById(
             supabase,
             String(args.product_id ?? ""),
           );
-          if (prod) previewProducts.push(prod);
+          if (prod) addPreviewProducts([prod]);
           toolResult = prod ?? { error: "Product not found" };
         } else if (fnName === "view_cart") {
           const subtotal = cartItems.reduce(
@@ -990,11 +1441,21 @@ export async function POST(req: Request) {
       p_visitor_id: visitorId,
     });
 
+    const latencyMs = Date.now() - startedAt;
+    const uniqueTools = [...new Set(executedTools)];
+    const hasVisuals =
+      (visuals.tables?.length ?? 0) > 0 ||
+      (visuals.outfits?.length ?? 0) > 0 ||
+      Boolean(visuals.comparison);
+
     return NextResponse.json({
       reply: finalReply,
       actions: clientActions,
       products: previewProducts,
-      toolsUsed: [...new Set(executedTools)],
+      ...(hasVisuals ? { visuals } : {}),
+      suggestedButtons: buildSuggestedButtons(uniqueTools),
+      toolsUsed: uniqueTools,
+      latencyMs,
       quota: postQuota ?? {
         daily_limit: preQuota.daily_limit,
         guest_limit: preQuota.guest_limit ?? 5,
