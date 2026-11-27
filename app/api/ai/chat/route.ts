@@ -77,12 +77,19 @@ const TOOLS = [
     function: {
       name: "search_products",
       description:
-        "Search and filter products in the store by keyword, category slug, min/max EGP price, price range, and sort order. Always check available categories or pass category_slug for broad Egyptian terms like كوتشي, بنطلون, هودي.",
+        "Search and filter products in the store by category_slug, optional keyword query, min/max EGP price, price range, and sort order. Always pass category_slug from [Store Categories] whenever the user asks for a clothing category in any Arabic/Egyptian dialect or spelling variant; pass query ONLY to narrow by a specific style, color, print, or sub-type (do NOT put broad or misspelled category words into query). Returns { matched_count, matched_products, above_budget_in_category, note } so you can answer honestly if matching items exceed the requested budget.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Search keyword in product name" },
-          category_slug: { type: "string", description: "Category slug from list_categories" },
+          query: {
+            type: "string",
+            description:
+              "Optional narrow keyword in product name (e.g. specific print, color, or subtype like 'باجي' or 'نمر'). Omit for category browsing.",
+          },
+          category_slug: {
+            type: "string",
+            description: "Exact category slug from [Store Categories]",
+          },
           price_range: {
             type: "string",
             enum: ["all", "under-500", "500-1500", "over-1500"],
@@ -478,26 +485,6 @@ const TOOLS = [
   },
 ];
 
-function resolveCategorySlugFromText(text: string): string | undefined {
-  const lower = text.toLowerCase();
-  if (/كوتشي|حذاء|شوز|سنيكرز|أحذية|جزمة|sneaker|shoe/i.test(lower)) {
-    return "shoes-sneakers";
-  }
-  if (/بنطلون|بناطيل|جينز|سويت بانت|شروال|جوجر|jogger|jeans|pants|sweatpant/i.test(lower)) {
-    return "pants-jeans";
-  }
-  if (/هودي|هوديز|سويت شيرت|بلوفر|hoodie|sweatshirt|pullover/i.test(lower)) {
-    return "hoodies-sweatshirts";
-  }
-  if (/تيشيرت|قميص|بدي|tshirt|t-shirt|shirt/i.test(lower)) {
-    return "tshirts-tops";
-  }
-  if (/طقم رياضي|ترينج|أطقم رياضية|tracksuit/i.test(lower)) {
-    return "tracksuits";
-  }
-  return undefined;
-}
-
 const ZONE_ETA_AR: Record<ShippingZoneId, string> = {
   cairo_giza: "1 – 2 يوم عمل",
   alex_delta_canal: "2 – 3 أيام عمل",
@@ -793,6 +780,17 @@ export async function POST(req: Request) {
       });
     }
 
+    const storeCategories = await getFeaturedCategories(supabase);
+    const categoryById = new Map(storeCategories.map((c) => [c.id, c]));
+    const categoryBySlug = new Map(storeCategories.map((c) => [c.slug, c]));
+
+    const categoriesContext =
+      storeCategories.length > 0
+        ? `\n\n[Store Categories (pass exact category_slug in search_products)]:\n${storeCategories
+            .map((c) => `- ${c.slug} (${c.name})`)
+            .join("\n")}`
+        : "";
+
     const cartContext =
       cartItems.length > 0
         ? `\n\n[Current Customer Cart]:\n${cartItems
@@ -808,9 +806,15 @@ export async function POST(req: Request) {
       : `\n[Customer Auth Status]: Guest (NOT signed in). Before confirming/placing an order via place_order, OR if the customer asks to sign in/register, you MUST call open_auth_dialog so the login/signup dialog opens in the browser.`;
 
     const startedAt = Date.now();
+    // Keep static rules at the prefix for DeepSeek KV Prefix Cache, with dynamic context after.
     const formattingGuidance = `
 
-[Formatting & Interactive Display Rules]:
+[Formatting, Intent & Truthfulness Rules]:
+- Understanding customer intent, Egyptian dialect, and typos (such as "تشتيرت", "تيشرت", "تشيرت", "كوتشى", "بنطلن", "سويتشيرت") and choosing tools & category_slug are 100% your responsibility.
+- Whenever a customer asks about a clothing category, ALWAYS pass the exact category_slug from [Store Categories] to search_products, and do NOT put broad or misspelled category nouns in query (reserve query for a specific color/print/style only).
+- NEVER omit matching in-budget products returned in matched_products for the requested category unless showing top picks is clearer, and even then always prioritize items matching the requested item type and category.
+- NEVER mislabel product types in headings or tables (e.g., never title sweatshirts/hoodies/shirts as "تيشيرتات"). Every product carries its exact category_slug and category_name.
+- If the specific item type the customer asked for (e.g., a literal t-shirt / تيشيرت) is NOT available within their requested budget (max_price), explicitly tell the customer honestly in your first sentence, mention the closest literal match & price from above_budget_in_category (if available), and then offer valid in-budget items from the same category or clearly labeled "بدائل قريبة في نفس الميزانية".
 - Format replies using clean Markdown: use ### for section headings, bullet lists (- ), and **bold** ONLY around short phrases/names (never wrap prices+text inconsistently or output messy unclosed **).
 - All products in the store are ALWAYS available in unlimited stock — NEVER mention stock counts, limited pieces, or out-of-stock warnings.
 - Whenever the user asks for an outfit, combo, or combined budget (e.g., "بنطلون وكوتشي ب 1200"), you MUST search BOTH categories first (calling search_products for each category separately), then call build_outfit_bundle with 2–3 curated combos (each containing real product IDs from search results) so interactive Outfit Cards & Comparison Table render!
@@ -821,7 +825,7 @@ export async function POST(req: Request) {
 - When replying in Arabic, refer to UI buttons in Arabic ("أضف للسلة" or "أضف الطقم كامل للسلة") — never use English button names inside Arabic replies.
 - When listing 3+ individual products outside a bundle, also include a clean Markdown table | المنتج | السعر | الميزة | in addition to concise advice.`;
 
-    const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${cartContext}${authContext}${formattingGuidance}`;
+    const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${formattingGuidance}${categoriesContext}${cartContext}${authContext}`;
 
     const deepseekMessages: Array<Record<string, unknown>> = [
       { role: "system", content: systemPrompt },
@@ -917,54 +921,94 @@ export async function POST(req: Request) {
 
         let toolResult: unknown = { ok: false };
 
+        const annotateProduct = (p: Product) => {
+          const cat = p.category_id ? categoryById.get(p.category_id) : undefined;
+          return {
+            ...p,
+            category_slug: cat?.slug ?? null,
+            category_name: cat?.name ?? null,
+          };
+        };
+
         if (fnName === "get_featured_products") {
           const limit = Math.min(12, Math.max(1, Number(args.limit ?? 8)));
           const prods = await getFeaturedProducts(supabase, limit);
           addPreviewProducts(prods);
-          toolResult = prods;
+          toolResult = prods.map(annotateProduct);
         } else if (fnName === "list_categories") {
-          toolResult = await getFeaturedCategories(supabase);
+          toolResult = storeCategories;
         } else if (fnName === "search_products") {
-          const cats = await getFeaturedCategories(supabase);
           const rawQuery =
             typeof args.query === "string" ? args.query.trim() : "";
-          const catSlug =
-            (args.category_slug as string | undefined) ||
-            resolveCategorySlugFromText(rawQuery);
-          const matchedCat = catSlug
-            ? cats.find((c) => c.slug === catSlug)
+          const requestedSlug =
+            typeof args.category_slug === "string"
+              ? args.category_slug.trim()
+              : "";
+          const matchedCat = requestedSlug
+            ? categoryBySlug.get(requestedSlug)
             : undefined;
           let res = await searchCatalog(supabase, {
             q: rawQuery || undefined,
             categoryId: matchedCat?.id,
             priceRange: (args.price_range as PriceRangeKey) || "all",
             sort: (args.sort as CatalogSort) || "newest",
-            pageSize: 20,
+            pageSize: 30,
           });
-          // Fall back to category-wide results when colloquial Arabic term doesn't literally appear in product name
+          // If combined keyword+category narrowed out valid category items, fetch the full category so the LLM sees actual items
           if (res.products.length === 0 && matchedCat && rawQuery) {
             res = await searchCatalog(supabase, {
               categoryId: matchedCat.id,
               priceRange: (args.price_range as PriceRangeKey) || "all",
               sort: (args.sort as CatalogSort) || "newest",
-              pageSize: 20,
+              pageSize: 30,
             });
           }
-          const minPrice =
-            typeof args.min_price === "number" && Number.isFinite(args.min_price)
-              ? args.min_price
-              : null;
-          const maxPrice =
-            typeof args.max_price === "number" && Number.isFinite(args.max_price)
-              ? args.max_price
-              : null;
-          const filtered = res.products.filter((p) => {
-            if (minPrice !== null && Number(p.price) < minPrice) return false;
-            if (maxPrice !== null && Number(p.price) > maxPrice) return false;
-            return true;
-          });
-          addPreviewProducts(filtered);
-          toolResult = filtered;
+          if (res.products.length === 0 && !matchedCat && rawQuery) {
+            toolResult = {
+              matched_count: 0,
+              matched_products: [],
+              above_budget_in_category: [],
+              available_categories: storeCategories.map((c) => ({
+                slug: c.slug,
+                name: c.name,
+              })),
+              note: "No literal title match for that keyword. Call search_products again with category_slug from available_categories and omit the broad category word from query.",
+            };
+          } else {
+            const minPrice =
+              typeof args.min_price === "number" && Number.isFinite(args.min_price)
+                ? args.min_price
+                : null;
+            const maxPrice =
+              typeof args.max_price === "number" && Number.isFinite(args.max_price)
+                ? args.max_price
+                : null;
+            const matched = res.products.filter((p) => {
+              if (minPrice !== null && Number(p.price) < minPrice) return false;
+              if (maxPrice !== null && Number(p.price) > maxPrice) return false;
+              return true;
+            });
+            const aboveBudgetInCategory =
+              matchedCat && maxPrice !== null
+                ? res.products
+                    .filter((p) => Number(p.price) > maxPrice)
+                    .sort((a, b) => Number(a.price) - Number(b.price))
+                    .slice(0, 5)
+                    .map(annotateProduct)
+                : [];
+            addPreviewProducts(matched);
+            toolResult = {
+              matched_count: matched.length,
+              matched_products: matched.map(annotateProduct),
+              above_budget_in_category: aboveBudgetInCategory,
+              note:
+                matched.length === 0 && aboveBudgetInCategory.length > 0
+                  ? "No items in this category fit the requested budget; see above_budget_in_category for the closest priced options."
+                  : matchedCat
+                    ? "Check exact product names and category_name before summarizing; do not mislabel non-tshirts as t-shirts."
+                    : undefined,
+            };
+          }
         } else if (fnName === "build_outfit_bundle") {
           const budget =
             typeof args.budget_egp === "number" && Number.isFinite(args.budget_egp)
@@ -1492,19 +1536,6 @@ export async function POST(req: Request) {
       finalReply = "تم تنفيذ طلبك بنجاح! هل تحتاج أي مساعدة أخرى؟";
     }
 
-    // Persist conversation & increment daily chat user analytics + quota
-    await supabase.rpc("save_ai_chat_turn", {
-      p_session_id: sessionId,
-      p_visitor_id: visitorId,
-      p_user_msg: lastUserMessage,
-      p_assistant_msg: finalReply,
-      p_tool_calls: executedTools.length > 0 ? executedTools : null,
-    });
-
-    const { data: postQuota } = await supabase.rpc("check_ai_chat_quota", {
-      p_visitor_id: visitorId,
-    });
-
     const latencyMs = Date.now() - startedAt;
     const uniqueTools = [...new Set(executedTools)];
     const hasVisuals =
@@ -1512,13 +1543,36 @@ export async function POST(req: Request) {
       (visuals.tables?.length ?? 0) > 0 ||
       (visuals.outfits?.length ?? 0) > 0 ||
       Boolean(visuals.comparison);
+    const suggestedButtons = buildSuggestedButtons(uniqueTools);
+
+    const messageMetadata = {
+      ...(previewProducts.length > 0 ? { products: previewProducts } : {}),
+      ...(hasVisuals ? { visuals } : {}),
+      suggestedButtons,
+      toolsUsed: uniqueTools,
+      latencyMs,
+    };
+
+    // Persist conversation, rich cards/visuals metadata & increment daily chat analytics + quota
+    await supabase.rpc("save_ai_chat_turn", {
+      p_session_id: sessionId,
+      p_visitor_id: visitorId,
+      p_user_msg: lastUserMessage,
+      p_assistant_msg: finalReply,
+      p_tool_calls: uniqueTools.length > 0 ? uniqueTools : null,
+      p_metadata: messageMetadata,
+    });
+
+    const { data: postQuota } = await supabase.rpc("check_ai_chat_quota", {
+      p_visitor_id: visitorId,
+    });
 
     return NextResponse.json({
       reply: finalReply,
       actions: clientActions,
       products: previewProducts,
       ...(hasVisuals ? { visuals } : {}),
-      suggestedButtons: buildSuggestedButtons(uniqueTools),
+      suggestedButtons,
       toolsUsed: uniqueTools,
       latencyMs,
       quota: postQuota ?? {

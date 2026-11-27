@@ -130,6 +130,11 @@ export function StorefrontAiShell() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevPathRef = useRef(pathname);
   const welcomeRef = useRef("");
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
 
   useEffect(() => {
     if (prevPathRef.current !== pathname) {
@@ -204,18 +209,45 @@ export function StorefrontAiShell() {
             role: "user" | "assistant";
             content: string;
             created_at: string;
+            tool_calls?: string[] | null;
+            metadata?: {
+              products?: Product[];
+              visuals?: ChatVisuals;
+              suggestedButtons?: string[];
+              toolsUsed?: string[];
+              latencyMs?: number;
+            } | null;
           }>;
         };
         if (d.quota) setQuota(d.quota);
         if (Array.isArray(d.conversations)) {
           setConversations(d.conversations);
         }
-        if (Array.isArray(d.messages) && d.messages.length > 0) {
+        if (Array.isArray(d.messages) && d.messages.length > 0 && !busyRef.current) {
           const restored: ChatMsg[] = d.messages.map((m) => ({
             id: m.id,
             role: m.role,
             content: m.content,
             createdAt: m.created_at,
+            products: Array.isArray(m.metadata?.products)
+              ? m.metadata.products
+              : undefined,
+            visuals:
+              m.metadata?.visuals && typeof m.metadata.visuals === "object"
+                ? m.metadata.visuals
+                : undefined,
+            suggestedButtons: Array.isArray(m.metadata?.suggestedButtons)
+              ? m.metadata.suggestedButtons
+              : undefined,
+            toolsUsed: Array.isArray(m.metadata?.toolsUsed)
+              ? m.metadata.toolsUsed
+              : Array.isArray(m.tool_calls)
+                ? m.tool_calls
+                : undefined,
+            latencyMs:
+              typeof m.metadata?.latencyMs === "number"
+                ? m.metadata.latencyMs
+                : undefined,
           }));
           setMessages([
             ...(welcomeRef.current
