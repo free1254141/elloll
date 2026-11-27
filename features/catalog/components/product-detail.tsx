@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, PackageCheck, Truck } from "lucide-react";
 import { hasEnvVars } from "@/lib/utils";
 import { getProductImages } from "@/features/catalog/lib/catalog";
 import {
@@ -8,15 +6,7 @@ import {
   getCachedProductById,
   getCachedRelatedProducts,
 } from "@/features/catalog/lib/catalog-cache";
-import { ProductCard } from "@/features/catalog/components/product-card";
-import { ProductGallery } from "@/features/catalog/components/product-gallery";
-import { AddToCart } from "@/features/catalog/components/add-to-cart";
-import { Button } from "@/components/ui/button";
-
-const priceFormatter = new Intl.NumberFormat("en-EG", {
-  style: "currency",
-  currency: "EGP",
-});
+import { ProductDetailView } from "@/features/catalog/components/product-detail-view";
 
 export async function ProductDetail({
   params,
@@ -34,8 +24,6 @@ export async function ProductDetail({
     notFound();
   }
 
-  // Related products need the product's own category, so they are fetched
-  // after the product resolves; categories resolve the slug for the chip.
   const [related, categories] = await Promise.all([
     getCachedRelatedProducts(product.category_id, product.id),
     getCachedFeaturedCategories(),
@@ -45,104 +33,13 @@ export async function ProductDetail({
   const images = getProductImages(product);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 py-8">
-      <Button asChild variant="ghost" size="sm" className="-ms-3 mb-6 text-muted-foreground">
-        <Link href="/products">
-          <ArrowLeft className="h-4 w-4" />
-          العودة إلى المنتجات
-        </Link>
-      </Button>
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        <ProductGallery name={product.name} images={images} />
-
-        <div className="flex flex-col gap-5">
-          <div>
-            {category && (
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                <Link
-                  href={`/collections/${category.slug}`}
-                  className="transition-colors hover:text-foreground"
-                >
-                  {category.name}
-                </Link>
-              </p>
-            )}
-            <h1 className="mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl">
-              {product.name}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-semibold sm:text-3xl">
-              {priceFormatter.format(product.price)}
-            </span>
-          </div>
-
-          {product.description && (
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {product.description}
-            </p>
-          )}
-
-          <AddToCart product={product} />
-
-          <div className="mt-2 grid gap-3 border-t border-border pt-5 text-sm">
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Truck className="h-4 w-4 shrink-0" />
-              <span>شحن مجاني للطلبات فوق 2,500 ج.م لجميع محافظات مصر</span>
-            </div>
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <PackageCheck className="h-4 w-4 shrink-0" />
-              <span>جاهز للشحن خلال 1–2 يوم عمل</span>
-            </div>
-            <div className="flex flex-wrap gap-3 pt-1 text-xs">
-              <Link
-                href="/size-guide"
-                className="font-medium text-amber-500 hover:underline"
-              >
-                دليل المقاسات
-              </Link>
-              <span className="text-border">•</span>
-              <Link
-                href="/shipping-delivery"
-                className="font-medium text-amber-500 hover:underline"
-              >
-                أسعار الشحن للمحافظات
-              </Link>
-              <span className="text-border">•</span>
-              <Link
-                href="/returns-policy"
-                className="font-medium text-amber-500 hover:underline"
-              >
-                الاستبدال والاسترجاع (14 يوماً)
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {related.length > 0 && (
-        <section aria-labelledby="related-products" className="mt-16">
-          <div className="mb-5 flex items-end justify-between gap-4">
-            <h2 id="related-products" className="text-2xl font-semibold tracking-tight">
-              منتجات مشابهة
-            </h2>
-            <Link
-              href="/products"
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              عرض الكل ←
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {related.map((product) => (
-              <ProductCard key={product.id} product={product} categories={categories} />
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
+    <ProductDetailView
+      product={product}
+      images={images}
+      category={category}
+      categories={categories}
+      related={related}
+    />
   );
 }
 

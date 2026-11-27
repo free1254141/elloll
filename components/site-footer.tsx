@@ -64,6 +64,12 @@ export function SiteFooter() {
                 {isAr ? "هوديز وسويت شيرتات" : "Hoodies & Sweatshirts"}
               </Link>
               <Link
+                href="/collections/pants-jeans"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {isAr ? "بنطلونات وسويت بانتس" : "Pants & Sweatpants"}
+              </Link>
+              <Link
                 href="/collections/shoes-sneakers"
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
@@ -73,7 +79,7 @@ export function SiteFooter() {
                 href="/collections/tshirts-tops"
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                {isAr ? "تيشيرتات وبديهات" : "T-Shirts & Tops"}
+                {isAr ? "تيشيرتات وقمصان" : "T-Shirts & Shirts"}
               </Link>
               <Link
                 href="/collections/tracksuits"

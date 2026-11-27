@@ -13,6 +13,7 @@ import {
   type PriceRangeKey,
 } from "@/features/catalog/lib/catalog";
 import { useLanguage } from "@/lib/i18n";
+import { getLocalizedCategoryName } from "@/lib/seo";
 
 export function CatalogToolbar({
   categories,
@@ -21,7 +22,7 @@ export function CatalogToolbar({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
 
   const q = searchParams.get("q") ?? "";
   const category = searchParams.get("category") ?? "";
@@ -160,7 +161,7 @@ export function CatalogToolbar({
                   : "border border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              {c.name}
+              {getLocalizedCategoryName(c, locale)}
             </button>
           ))}
         </div>

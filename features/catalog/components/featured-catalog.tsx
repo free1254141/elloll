@@ -12,7 +12,7 @@ export async function FeaturedCatalog() {
 
   const [categories, products] = await Promise.all([
     getCachedFeaturedCategories(),
-    getCachedFeaturedProducts(24),
+    getCachedFeaturedProducts(60),
   ]);
 
   if (products.length === 0) {

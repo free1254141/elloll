@@ -136,6 +136,7 @@ function CartContents() {
 }
 
 function CartLine({ item }: { item: CartItem }) {
+  const { t } = useLanguage();
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
   const unavailable = item.unavailable === true;
@@ -162,11 +163,11 @@ function CartLine({ item }: { item: CartItem }) {
               {item.name}
             </Link>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {priceFormatter.format(item.price)} each
+              {priceFormatter.format(item.price)} {t("eachLabel")}
             </p>
             {unavailable ? (
               <p className="mt-1 text-xs font-semibold text-destructive">
-                No longer available — remove
+                {t("unavailableRemove")}
               </p>
             ) : null}
           </div>

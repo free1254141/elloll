@@ -17,19 +17,24 @@ export function getSiteUrl(): string {
 }
 
 export type CollectionSeoEntry = {
+  nameEn: string;
   title: string;
   description: string;
   intro: string;
+  introEn: string;
   keywords: string[];
 };
 
 export const COLLECTION_SEO_MAP: Record<string, CollectionSeoEntry> = {
   "hoodies-sweatshirts": {
+    nameEn: "Hoodies & Sweatshirts",
     title: "هوديز وسويت شيرتات رجالي وشبابي في مصر | elloll",
     description:
       "تسوق أحدث هوديز أوفرسايز، سويت شيرتات قطن مصري، وبلوفرات شتوية رجالي بأسعار مناسبة مع الدفع عند الاستلام وشحن سريع لجميع محافظات مصر.",
     intro:
       "مجموعة مختارة من الهوديز الأوفرسايز والسويت شيرتات القطنية والبلوفرات الشتوية المصممة بخامات مريحة وقصّات عصرية تناسب كل يوم.",
+    introEn:
+      "A curated collection of oversized hoodies, cotton sweatshirts, and seasonal pullovers crafted for everyday comfort and modern streetwear style.",
     keywords: [
       "هوديز رجالي مصر",
       "سويت شيرت أوفرسايز",
@@ -39,12 +44,33 @@ export const COLLECTION_SEO_MAP: Record<string, CollectionSeoEntry> = {
       "elloll",
     ],
   },
+  "pants-jeans": {
+    nameEn: "Pants & Sweatpants",
+    title: "بنطلونات جينز وسويت بانتس وجوجرز رجالي في مصر | elloll",
+    description:
+      "تسوق أحدث بنطلونات جينز باجي وسليم فت، وسويت بانتس وجوجرز رياضية رجالي بخامات مريحة في مصر مع الدفع عند الاستلام وشحن لجميع المحافظات.",
+    intro:
+      "تشكيلة متنوعة من بناطيل السويت بانتس والجوغرز الرياضية وبناطيل الجينز الباجي والسليم فت لإطلالات مريحة وعصرية في كل وقت.",
+    introEn:
+      "Wide-leg sweatpants, athletic joggers, baggy denim, and slim-fit jeans designed for daily movement and clean street style across Egypt.",
+    keywords: [
+      "بنطلون سويت بانتس مصر",
+      "بنطلون جينز باجي رجالي",
+      "بنطلون جوجر رياضي",
+      "شروال رجالي قطن",
+      "بناطيل كاجوال شبابي",
+      "elloll",
+    ],
+  },
   "shoes-sneakers": {
+    nameEn: "Shoes & Sneakers",
     title: "أحذية كاجوال وسنيكرز شبابي مريح في مصر | elloll",
     description:
       "اكتشف تشكيلة سنيكرز رياضي وأحذية كاجوال يومية خفيفة ومريحة للرجال والشباب في مصر، جودة ممتازة ودفع عند الاستلام وتوصيل سريع.",
     intro:
       "أحذية كاجوال وسنيكرز يومي بتصميمات عصرية وخفيفة تمنحك راحة طوال اليوم في المشي والجامعة والخروجات.",
+    introEn:
+      "Lightweight everyday sneakers and casual shoes built for comfort on campus, city walks, and weekend outings.",
     keywords: [
       "سنيكرز رجالي مصر",
       "أحذية كاجوال شبابي",
@@ -54,25 +80,31 @@ export const COLLECTION_SEO_MAP: Record<string, CollectionSeoEntry> = {
     ],
   },
   "tshirts-tops": {
-    title: "تيشيرتات قطن وبديهات رجالي أونلاين في مصر | elloll",
+    nameEn: "T-Shirts & Shirts",
+    title: "تيشيرتات وقمصان وبديهات قطن رجالي في مصر | elloll",
     description:
-      "اشتري تيشيرتات مخططة كم طويل وبديهات قطن ناعم أساسية للخزانة من متجر elloll، خامات مصرية ممتازة وشحن لجميع المحافظات.",
+      "اشتري قمصان رجالي كم طويل وتيشيرتات مخططة وبديهات قطن ناعم من متجر elloll، خامات مصرية ممتازة وشحن سريع لجميع محافظات مصر.",
     intro:
-      "قطع أساسية وتيشيرتات قطنية مريحة يسهل تنسيقها مع كل الإطلالات اليومية والكاجوال على مدار العام.",
+      "قطع أساسية من القمصان الكلاسيك والتيشيرتات القطنية المريحة يسهل تنسيقها مع كل الإطلالات اليومية والكاجوال على مدار العام.",
+    introEn:
+      "Essential long-sleeve shirts, striped tees, and soft cotton tops that pair effortlessly with jeans or sweatpants all year round.",
     keywords: [
-      "تيشيرتات رجالي مصر",
+      "تيشيرتات وقمصان رجالي مصر",
+      "قميص رجالي قطن",
       "بدي قطن رجالي",
       "تيشيرت مخطط كم طويل",
-      "ملابس أساسية رجالي",
       "elloll",
     ],
   },
   tracksuits: {
+    nameEn: "Tracksuits",
     title: "أطقم رياضية وترينجات رجالي كاملة في مصر | elloll",
     description:
       "تسوق أطقم رياضية وترينجات رجالي متناسقة من سويت شيرت وبنطلون قطن مريح للنادي والخروجات، توصيل سريع لجميع محافظات مصر من elloll.",
     intro:
       "أطقم رياضية كاملة تجمع بين الراحة العملية والمظهر الرياضي الأنيق للتمارين والنادي والمشاوير اليومية.",
+    introEn:
+      "Matching two-piece tracksuits combining breathable cotton comfort with an athletic everyday silhouette.",
     keywords: [
       "طقم رياضي رجالي مصر",
       "ترينج رجالي أسود",
@@ -90,11 +122,29 @@ export function getCollectionSeo(category: {
   const mapped = COLLECTION_SEO_MAP[category.slug];
   if (mapped) return mapped;
   return {
+    nameEn: category.name,
     title: `${category.name} — تسوق أونلاين في مصر | elloll`,
     description: `اكتشف أحدث منتجات قسم ${category.name} في متجر elloll بأسعار الجنيه المصري مع الدفع عند الاستلام وشحن سريع لجميع محافظات مصر.`,
     intro: `تصفح تشكيلة ${category.name} المختارة بعناية في متجر elloll مع شحن سريع لجميع محافظات مصر.`,
+    introEn: `Browse our curated ${category.name} collection at elloll with fast nationwide delivery across Egypt.`,
     keywords: [category.name, "elloll", "ملابس في مصر", "تسوق أونلاين مصر"],
   };
+}
+
+export function getLocalizedCategoryName(
+  category: { name: string; slug: string },
+  locale: "ar" | "en",
+): string {
+  if (locale === "ar") return category.name;
+  return COLLECTION_SEO_MAP[category.slug]?.nameEn ?? category.name;
+}
+
+export function getLocalizedCollectionIntro(
+  category: { name: string; slug: string },
+  locale: "ar" | "en",
+): string {
+  const seo = getCollectionSeo(category);
+  return locale === "ar" ? seo.intro : seo.introEn;
 }
 
 export function buildPageMetadata({

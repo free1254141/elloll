@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/features/catalog/components/product-card";
 import { SortDropdown } from "@/features/catalog/components/sort-dropdown";
 import { useLanguage } from "@/lib/i18n";
+import { getLocalizedCategoryName } from "@/lib/seo";
 import type {
   CatalogSort,
   Category,
@@ -27,7 +28,7 @@ export function HomeSmartCatalog({
   categories: Category[];
   products: Product[];
 }) {
-  const { t, dir } = useLanguage();
+  const { t, locale, dir } = useLanguage();
   const Arrow = dir === "rtl" ? ArrowLeft : ArrowRight;
 
   const [q, setQ] = useState("");
@@ -162,7 +163,7 @@ export function HomeSmartCatalog({
                     : "border border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 }`}
               >
-                {cat.name}
+                {getLocalizedCategoryName(cat, locale)}
               </button>
             ))}
           </div>

@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { getProductImages, type Category, type Product } from "@/features/catalog/lib/catalog";
 import { useCartStore } from "@/features/cart/lib/cart";
 import { useLanguage } from "@/lib/i18n";
+import { getLocalizedCategoryName } from "@/lib/seo";
 
 const priceFormatter = new Intl.NumberFormat("en-EG", {
   style: "currency",
@@ -21,14 +22,16 @@ export function ProductCard({
   categories?: Category[];
 }) {
   const addItem = useCartStore((state) => state.addItem);
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [justAdded, setJustAdded] = useState(false);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const images = getProductImages(product);
   const primaryImage = images[0] || product.image_url;
   const secondaryImage = images.length > 1 ? images[1] : null;
-  const categoryName =
-    categories?.find((c) => c.id === product.category_id)?.name ?? null;
+  const matchedCat = categories?.find((c) => c.id === product.category_id) ?? null;
+  const categoryName = matchedCat
+    ? getLocalizedCategoryName(matchedCat, locale)
+    : null;
 
   function handleAddToCart(e: React.MouseEvent) {
     e.preventDefault();
