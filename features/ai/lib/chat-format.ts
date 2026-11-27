@@ -26,10 +26,18 @@ export interface ComparisonPayload {
   products: Array<Product & { categoryName?: string }>;
 }
 
+export interface ProductCardPayload {
+  product: Product;
+  categoryName?: string;
+  categorySlug?: string;
+  highlightBadge?: string;
+}
+
 export interface ChatVisuals {
   tables?: ChatTable[];
   outfits?: OutfitCombo[];
   comparison?: ComparisonPayload;
+  productCards?: ProductCardPayload[];
 }
 
 export type MarkdownBlock =
@@ -160,6 +168,7 @@ export const TOOL_LABELS: Record<string, { ar: string; en: string; icon: string 
   get_featured_products: { ar: "المميز بالمتجر", en: "Featured", icon: "✨" },
   list_categories: { ar: "أقسام المتجر", en: "Categories", icon: "📂" },
   get_product_details: { ar: "تفاصيل المنتج", en: "Product Details", icon: "🏷️" },
+  show_product_cards: { ar: "كارت المنتج", en: "Product Card", icon: "🛍️" },
   build_outfit_bundle: { ar: "تجهيز الطقم", en: "Outfit Builder", icon: "👔" },
   compare_products: { ar: "مقارنة المنتجات", en: "Compare", icon: "⚖️" },
   get_shipping_rates: { ar: "أسعار الشحن", en: "Shipping Rates", icon: "🚚" },

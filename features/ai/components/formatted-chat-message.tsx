@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ChatProductCard } from "@/features/ai/components/chat-product-card";
 import {
   exportTableToExcel,
   splitMarkdownBlocks,
@@ -645,13 +646,14 @@ export function FormattedChatMessage({
   locale: "ar" | "en";
   dir: "rtl" | "ltr";
   onQuickReply?: (text: string) => void;
-  onAddProduct?: (product: Product) => void;
+  onAddProduct?: (product: Product, quantity?: number) => void;
   onAddBundle?: (products: Product[]) => void;
   onCloseDrawer?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const isAr = locale === "ar";
   const blocks = splitMarkdownBlocks(content);
+  const productCards = visuals?.productCards ?? [];
   const structuredTables = visuals?.tables ?? [];
   const outfits = visuals?.outfits ?? [];
   const comparison = visuals?.comparison;
@@ -671,6 +673,29 @@ export function FormattedChatMessage({
 
   return (
     <div dir={dir} className="w-full min-w-0 space-y-2.5 text-start">
+      {/* Interactive Flagship Product Cards inside Message */}
+      {productCards.length > 0 && (
+        <div
+          className={`grid gap-3 ${
+            productCards.length === 1
+              ? "grid-cols-1"
+              : "grid-cols-1 md:grid-cols-2"
+          }`}
+        >
+          {productCards.map((card, idx) => (
+            <ChatProductCard
+              key={`${card.product.id}-${idx}`}
+              item={card}
+              locale={locale}
+              compact={productCards.length > 2}
+              onAddProduct={(p, q) => onAddProduct?.(p, q)}
+              onQuickReply={onQuickReply}
+              onCloseDrawer={onCloseDrawer}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Interactive Outfit / Combo Cards */}
       {outfits.length > 0 && (
         <div

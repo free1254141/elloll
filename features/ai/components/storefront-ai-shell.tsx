@@ -4,16 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Check,
   Clock,
-  Eye,
   History,
   Loader2,
   Maximize2,
   MessageSquarePlus,
   Minimize2,
   Send,
-  ShoppingCart,
   Sparkles,
   Trash2,
   X,
@@ -34,6 +31,7 @@ import {
   ExportableTable,
   FormattedChatMessage,
 } from "@/features/ai/components/formatted-chat-message";
+import { ChatProductCard } from "@/features/ai/components/chat-product-card";
 import type { ChatVisuals } from "@/features/ai/lib/chat-format";
 import type { Product } from "@/features/catalog/lib/catalog";
 
@@ -86,11 +84,6 @@ type ClientAction =
   | { type: "NAVIGATE"; path: string }
   | { type: "OPEN_AUTH_MODAL"; mode?: "login" | "signup" };
 
-const priceFmt = new Intl.NumberFormat("en-EG", {
-  style: "currency",
-  currency: "EGP",
-});
-
 function getOrCreateId(key: string, prefix: string): string {
   try {
     const existing = localStorage.getItem(key);
@@ -124,7 +117,6 @@ export function StorefrontAiShell() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [visitorId, setVisitorId] = useState("");
   const [sessionId, setSessionId] = useState("");
-  const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const [quota, setQuota] = useState<ChatQuota>({
     daily_limit: 20,
     guest_limit: 5,
@@ -433,10 +425,8 @@ export function StorefrontAiShell() {
     }
   }
 
-  function handleAddProduct(p: Product) {
-    addItem(p, 1);
-    setJustAddedId(p.id);
-    setTimeout(() => setJustAddedId(null), 1400);
+  function handleAddProduct(p: Product, quantity = 1) {
+    addItem(p, Math.max(1, quantity));
   }
 
   function handleAddBundle(bundle: Product[]) {
@@ -676,127 +666,89 @@ export function StorefrontAiShell() {
                 )}
               </div>
 
-              {msg.products && msg.products.length > 0 && (
-                <div className="space-y-2.5">
-                  <div
-                    className={
-                      isFullViewport
-                        ? "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-                        : "flex gap-3 overflow-x-auto pb-2 pt-1"
-                    }
-                  >
-                    {msg.products.map((p) => {
-                      const added = justAddedId === p.id;
-                      return (
+              {(() => {
+                const cardIds = new Set(
+                  (msg.visuals?.productCards ?? []).map((c) => c.product.id),
+                );
+                const remainingProducts = (msg.products ?? []).filter(
+                  (p) => !cardIds.has(p.id),
+                );
+                if (remainingProducts.length === 0) return null;
+
+                const isSpotlight =
+                  remainingProducts.length <= 2 &&
+                  (msg.visuals?.outfits?.length ?? 0) === 0;
+
+                return (
+                  <div className="space-y-2.5">
+                    <div
+                      className={
+                        isSpotlight
+                          ? `grid gap-3 ${
+                              remainingProducts.length === 1
+                                ? "max-w-md grid-cols-1"
+                                : "grid-cols-1 md:grid-cols-2"
+                            }`
+                          : isFullViewport
+                            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                            : "flex gap-3 overflow-x-auto pb-2 pt-1"
+                      }
+                    >
+                      {remainingProducts.map((p) => (
                         <div
                           key={p.id}
-                          className={`flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-amber-500/40 ${
-                            isFullViewport ? "w-full" : "w-48 shrink-0"
-                          }`}
+                          className={
+                            isSpotlight || isFullViewport ? "w-full" : "w-60 shrink-0"
+                          }
                         >
-                          <Link
-                            href={`/products/${p.id}`}
-                            onClick={() => {
+                          <ChatProductCard
+                            item={{ product: p }}
+                            locale={locale}
+                            compact={!isSpotlight}
+                            onAddProduct={handleAddProduct}
+                            onQuickReply={(txt) => void sendText(txt)}
+                            onCloseDrawer={() => {
                               if (!isChatOnly) setExpanded(false);
                             }}
-                            className="relative aspect-square overflow-hidden bg-muted"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={p.image_url}
-                              alt={p.name}
-                              className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                            />
-                          </Link>
-
-                          <div className="flex flex-1 flex-col gap-1.5 p-3">
-                            <p className="line-clamp-2 text-xs font-semibold leading-snug">
-                              {p.name}
-                            </p>
-                            <p
-                              dir="ltr"
-                              className="mt-auto font-display text-sm font-bold tabular-nums text-amber-500"
-                            >
-                              {priceFmt.format(p.price)}
-                            </p>
-                            <div className="mt-1 grid grid-cols-2 gap-1.5">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                asChild
-                                className="h-7 px-2 text-[11px]"
-                              >
-                                <Link
-                                  href={`/products/${p.id}`}
-                                  onClick={() => {
-                                    if (!isChatOnly) setExpanded(false);
-                                  }}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                  {locale === "ar" ? "التفاصيل" : "View"}
-                                </Link>
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => handleAddProduct(p)}
-                                className={`h-7 gap-1 px-2 text-[11px] ${
-                                  added ? "bg-emerald-600 text-white" : ""
-                                }`}
-                              >
-                                {added ? (
-                                  <>
-                                    <Check className="h-3 w-3" />
-                                    {locale === "ar" ? "تمت" : "Added"}
-                                  </>
-                                ) : (
-                                  <>
-                                    <ShoppingCart className="h-3 w-3" />
-                                    {locale === "ar" ? "أضف" : "Add"}
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
+                          />
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
 
-                  {msg.products.length >= 2 && !hasInlineOrVisualTable && (
-                    <details className="group text-xs text-muted-foreground">
-                      <summary className="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 font-bold transition-colors hover:border-amber-500/40 hover:text-foreground">
-                        <span>
-                          {locale === "ar"
-                            ? `📊 عرض جدول المنتجات الكامل وتصدير إكسيل (${msg.products.length})`
-                            : `📊 Show full products table & export Excel (${msg.products.length})`}
-                        </span>
-                      </summary>
-                      <div className="mt-2">
-                        <ExportableTable
-                          title={
-                            locale === "ar"
-                              ? "جدول المنتجات المعروضة"
-                              : "Displayed Products Table"
-                          }
-                          headers={
-                            locale === "ar"
-                              ? ["المنتج", "السعر (ج.م)", "الوصف"]
-                              : ["Product", "Price (EGP)", "Description"]
-                          }
-                          rows={msg.products.map((p) => [
-                            p.name,
-                            `${Number(p.price)} ${locale === "ar" ? "ج.م" : "EGP"}`,
-                            (p.description || "").slice(0, 70),
-                          ])}
-                          locale={locale}
-                        />
-                      </div>
-                    </details>
-                  )}
-                </div>
-              )}
+                    {remainingProducts.length >= 2 && !hasInlineOrVisualTable && (
+                      <details className="group text-xs text-muted-foreground">
+                        <summary className="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 font-bold transition-colors hover:border-amber-500/40 hover:text-foreground">
+                          <span>
+                            {locale === "ar"
+                              ? `📊 عرض جدول المنتجات الكامل وتصدير إكسيل (${remainingProducts.length})`
+                              : `📊 Show full products table & export Excel (${remainingProducts.length})`}
+                          </span>
+                        </summary>
+                        <div className="mt-2">
+                          <ExportableTable
+                            title={
+                              locale === "ar"
+                                ? "جدول المنتجات المعروضة"
+                                : "Displayed Products Table"
+                            }
+                            headers={
+                              locale === "ar"
+                                ? ["المنتج", "السعر (ج.م)", "الوصف"]
+                                : ["Product", "Price (EGP)", "Description"]
+                            }
+                            rows={remainingProducts.map((p) => [
+                              p.name,
+                              `${Number(p.price)} ${locale === "ar" ? "ج.م" : "EGP"}`,
+                              (p.description || "").slice(0, 70),
+                            ])}
+                            locale={locale}
+                          />
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

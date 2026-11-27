@@ -24,6 +24,7 @@ import type {
   ChatVisuals,
   OutfitCombo,
   OutfitComboItem,
+  ProductCardPayload,
 } from "@/features/ai/lib/chat-format";
 
 type ClientAction =
@@ -179,6 +180,28 @@ const TOOLS = [
             enum: ["clothing", "shoes", "all"],
           },
         },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "show_product_cards",
+      description:
+        "Display flagship interactive Product Cards inside the chat reply for 1 to 4 specific products (with multi-image gallery, zoom, shipping/COD/returns tiles, quantity selector, Add to Cart, and style actions). Call this whenever the customer asks to see a product card or top featured picks.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_ids: {
+            type: "array",
+            items: { type: "string" },
+          },
+          highlight_badge: {
+            type: "string",
+            description: "Optional short badge text like الأكثر طلباً or ترشيح المساعد",
+          },
+        },
+        required: ["product_ids"],
       },
     },
   },
@@ -794,6 +817,8 @@ export async function POST(req: Request) {
 - Whenever the user asks to compare products, call compare_products with their exact product IDs.
 - Whenever the user asks about shipping fees or delivery duration across Egypt, call get_shipping_rates.
 - Whenever the user asks about sizes or measurements, call get_size_chart.
+- Whenever the user asks to see a specific product card, details, or price of 1–4 items (e.g., "وريني كارت المنتج" / "تفاصيل الهودي"), call get_product_details or show_product_cards so the flagship interactive Product Card renders inside your reply.
+- When replying in Arabic, refer to UI buttons in Arabic ("أضف للسلة" or "أضف الطقم كامل للسلة") — never use English button names inside Arabic replies.
 - When listing 3+ individual products outside a bundle, also include a clean Markdown table | المنتج | السعر | الميزة | in addition to concise advice.`;
 
     const systemPrompt = `${aiConfig.system_prompt || "You are elloll AI assistant."}${cartContext}${authContext}${formattingGuidance}`;
@@ -1164,12 +1189,51 @@ export async function POST(req: Request) {
             ];
           }
           toolResult = { ok: true, displayed: chartType };
+        } else if (fnName === "show_product_cards") {
+          const ids = Array.isArray(args.product_ids)
+            ? args.product_ids.map((x) => String(x).trim()).filter(Boolean).slice(0, 4)
+            : [];
+          const cats = await getFeaturedCategories(supabase);
+          const badge = args.highlight_badge ? String(args.highlight_badge) : undefined;
+          const cards: ProductCardPayload[] = [];
+          for (const pid of ids) {
+            const p = await getProductById(supabase, pid);
+            if (p) {
+              const cat = cats.find((c) => c.id === p.category_id);
+              cards.push({
+                product: p,
+                categoryName: cat?.name,
+                categorySlug: cat?.slug,
+                highlightBadge: badge,
+              });
+              addPreviewProducts([p]);
+            }
+          }
+          if (cards.length > 0) {
+            visuals.productCards = [...(visuals.productCards ?? []), ...cards];
+          }
+          toolResult = {
+            ok: cards.length > 0,
+            shown: cards.map((c) => ({ id: c.product.id, name: c.product.name, price: c.product.price })),
+          };
         } else if (fnName === "get_product_details") {
           const prod = await getProductById(
             supabase,
             String(args.product_id ?? ""),
           );
-          if (prod) addPreviewProducts([prod]);
+          if (prod) {
+            addPreviewProducts([prod]);
+            const cats = await getFeaturedCategories(supabase);
+            const cat = cats.find((c) => c.id === prod.category_id);
+            visuals.productCards = [
+              ...(visuals.productCards ?? []),
+              {
+                product: prod,
+                categoryName: cat?.name,
+                categorySlug: cat?.slug,
+              },
+            ];
+          }
           toolResult = prod ?? { error: "Product not found" };
         } else if (fnName === "view_cart") {
           const subtotal = cartItems.reduce(
@@ -1444,6 +1508,7 @@ export async function POST(req: Request) {
     const latencyMs = Date.now() - startedAt;
     const uniqueTools = [...new Set(executedTools)];
     const hasVisuals =
+      (visuals.productCards?.length ?? 0) > 0 ||
       (visuals.tables?.length ?? 0) > 0 ||
       (visuals.outfits?.length ?? 0) > 0 ||
       Boolean(visuals.comparison);
